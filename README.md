@@ -16,5 +16,5 @@ Use Unity 2020.2.1f1
 + IMD Convert
 + H37 disk image support
 + Add files to HDOS or CP/M
-
-
++ Save HTML
++ Save TEXT
