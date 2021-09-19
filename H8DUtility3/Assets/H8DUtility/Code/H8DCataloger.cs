@@ -20,6 +20,7 @@ public class H8DCataloger : MonoBehaviour
 	public UnityEngine.UI.Text fileViewTitle;
 	public UnityEngine.UI.Text fileViewFooter;
 	public UnityEngine.UI.Button allFilesButton;
+	public UnityEngine.UI.Text versionText;
 
 	public struct DiskFileItem
 	{
@@ -138,6 +139,8 @@ public class H8DCataloger : MonoBehaviour
     void Awake()
     {
 		Instance = this;
+
+		versionText.text = Application.version;
     }
 
     void Start()
