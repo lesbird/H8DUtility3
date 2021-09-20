@@ -25,7 +25,7 @@ public class H8DCataloger : MonoBehaviour
 	public struct DiskFileItem
 	{
 		public string lineItem;
-		public int type;
+		public int type;	// 0=file data,1=header,2=footer
 		public int size;
 		public int imageIndex;
 		public string fileName;
@@ -216,6 +216,8 @@ public class H8DCataloger : MonoBehaviour
 
 		if (System.IO.File.Exists(filePath))
 		{
+			//Debug.Log(filePath);
+
 			diskImageBuffer = System.IO.File.ReadAllBytes(filePath);
 			diskFileContentList.Clear();
 			ProcessDiskImage();
@@ -293,11 +295,6 @@ public class H8DCataloger : MonoBehaviour
 		List<int> nextDirBlockList = new List<int>();
 		while (true)
 		{
-			if (offset == 0)
-			{
-				break;
-			}
-
 			HDOSDirEntry entry = dirEntry;
 
 			while (true)
@@ -343,11 +340,15 @@ public class H8DCataloger : MonoBehaviour
 					entry_count = 0;
 					//Debug.Log("offset=" + offset.ToString("X"));
 				}
+				if (entry.project != 0)
+				{
+					offset = 0;
+				}
 				if (offset == 0)
 				{
 					break;
 				}
-				if (entry.filename[0] == 0xFE || entry.filename[0] == 0xFF)
+				if (entry.filename[0] == 0 || entry.filename[0] == 0xFE || entry.filename[0] == 0xFF)
 				{
 					// empty entry - try next file
 					continue;
@@ -355,7 +356,13 @@ public class H8DCataloger : MonoBehaviour
 				break;
 			}
 
-			if (entry.filename[0] != 0xFE && entry.filename[0] != 0xFF)
+			if (offset == 0)
+			{
+				// done with directory scan
+				break;
+			}
+
+			if (entry.filename[0] != 0 && entry.filename[0] != 0xFE && entry.filename[0] != 0xFF)
 			{
 				int fsize = ComputeHDOSFileSize(entry, disk_info.sectors_per_group);
 
@@ -1366,11 +1373,114 @@ public class H8DCataloger : MonoBehaviour
 	// writes out diskFileContentList as an HTML file
 	public void SaveHTMLButton()
 	{
+		List<string> htmlData = new List<string>();
+		htmlData.Add("<!DOCTYPE html>");
+		htmlData.Add("<html>");
+		htmlData.Add("<body>");
+		htmlData.Add("<center>");
+		htmlData.Add("<pre>");
+
+		htmlData.Add("<h2>DISK IMAGE CATALOG</h2>");
+
+		int diskCount = 0;
+		int fileCount = 0;
+		for (int i = 0; i < diskFileList.Count; i++)
+		{
+			DiskFileItem item = diskFileList[i];
+			if (item.type == 1)
+			{
+				// header
+				htmlData.Add("<hr>");
+				htmlData.Add("<h3>");
+				htmlData.Add(item.lineItem);
+				htmlData.Add("</h3>");
+				diskCount++;
+			}
+			else if (item.type == 2)
+			{
+				// footer
+				htmlData.Add("<h3>");
+				htmlData.Add(item.lineItem);
+				htmlData.Add("</h3>");
+			}
+			else
+			{
+				// file data
+				htmlData.Add(item.lineItem.Trim());
+				fileCount++;
+			}
+		}
+
+		htmlData.Add("<hr>");
+
+		string s = "<h3>TOTAL DISKS=" + diskCount.ToString() + " TOTAL FILES=" + fileCount.ToString() + "</h3>";
+		htmlData.Add(s);
+
+		htmlData.Add("<h4>Created by H8DUTILITY 3 on " + System.DateTime.Now.ToShortDateString() + "</h4>");
+
+		htmlData.Add("<hr>");
+		htmlData.Add("</pre>");
+		htmlData.Add("</center>");
+		htmlData.Add("</body>");
+		htmlData.Add("</html>");
+
+		string path = workingFolderText.text;
+		string filePath = System.IO.Path.Combine(path, "H8DCATALOG.HTML");
+
+		Debug.Log("SaveHTML() filePath=" + filePath);
+
+		System.IO.File.WriteAllLines(filePath, htmlData.ToArray());
 	}
 
 	// writes out diskFileContentList as a text file
 	public void SaveTextButton()
 	{
+		List<string> textData = new List<string>();
+
+		string line = "==========================";
+
+		textData.Add("DISK IMAGE CATALOG");
+		textData.Add("");
+
+		int diskCount = 0;
+		int fileCount = 0;
+		for (int i = 0; i < diskFileList.Count; i++)
+		{
+			DiskFileItem item = diskFileList[i];
+			if (item.type == 1)
+			{
+				// header
+				textData.Add(line);
+				textData.Add(item.lineItem);
+				textData.Add("");
+				diskCount++;
+			}
+			else if (item.type == 2)
+			{
+				// footer
+				textData.Add("");
+				textData.Add(item.lineItem);
+			}
+			else
+			{
+				// file data
+				textData.Add(item.lineItem.Trim());
+				fileCount++;
+			}
+		}
+		textData.Add(line);
+
+		string s = "TOTAL DISKS=" + diskCount.ToString() + " TOTAL FILES=" + fileCount.ToString();
+		textData.Add(s);
+		textData.Add("");
+		textData.Add("Created by H8DUTILITY 3 on " + System.DateTime.Now.ToShortDateString());
+
+		string path = workingFolderText.text;
+		string filePath = System.IO.Path.Combine(path, "H8DCATALOG.TXT");
+
+		Debug.Log("SaveText() filePath=" + filePath);
+
+		System.IO.File.WriteAllLines(filePath, textData.ToArray());
 	}
 
 	// insert a file into a HDOS disk image
