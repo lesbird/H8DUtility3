@@ -11,10 +11,10 @@ Use Unity 2020.2.1f1
 + Cataloger is working (HDOS and CP/M)
 + Viewing files is working (HDOS and CP/M) - if file is binary then switches to Hex view mode
 + Extracting files is working (HDOS and CP/M) - extract individual files or entire disk
++ Save HTML catalog output
++ Save TEXT catalog output
 
 ### NOT WORKING
 + IMD Convert
 + H37 disk image support
 + Add files to HDOS or CP/M
-+ Save HTML
-+ Save TEXT
