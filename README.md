@@ -3,7 +3,7 @@ Utility to catalog and manipulate Heathkit 8-bit computer disk images (H8D)
 
 Heathkit 8-bit computers: H8, H89, Z89
 
-Use Unity 2020.2.1f1
+Use Unity 2020.3.7f1
 
 # STATE OF PROJECT
 ### WORKING
@@ -11,10 +11,10 @@ Use Unity 2020.2.1f1
 + Cataloger is working (HDOS and CP/M)
 + Viewing files is working (HDOS and CP/M) - if file is binary then switches to Hex view mode
 + Extracting files is working (HDOS and CP/M) - extract individual files or entire disk
++ Save HTML catalog output
++ Save TEXT catalog output
 
 ### NOT WORKING
 + IMD Convert
 + H37 disk image support
 + Add files to HDOS or CP/M
-+ Save HTML
-+ Save TEXT
