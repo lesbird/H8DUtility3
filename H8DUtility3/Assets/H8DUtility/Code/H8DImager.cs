@@ -776,6 +776,11 @@ public class H8DImager : MonoBehaviour
 
 	public void SendLoaderPressed()
 	{
+		StartCoroutine(SendLoaderCoroutine());
+	}
+
+	IEnumerator SendLoaderCoroutine()
+	{
 		string path = Application.streamingAssetsPath;
 		string file = "H89LDR3.BIN";
 		string filePath = System.IO.Path.Combine(path, file);
@@ -788,21 +793,34 @@ public class H8DImager : MonoBehaviour
 		{
 			if (text.text.Equals("SEND LDR"))
 			{
-				SendToLog("SENDING H89LDR.BIN");
+				SendToLog("SENDING H89LDR3.BIN");
+
+				yield return new WaitForEndOfFrame();
 
 				if (System.IO.File.Exists(filePath))
 				{
+					// sends loader in reverse byte order
 					byte[] loader = System.IO.File.ReadAllBytes(filePath);
 					for (int i = loader.Length - 1; i >= 0; i--)
 					{
 						buf[0] = loader[i];
 						serialPort.Write(buf, 0, 1);
 					}
+
+					yield return new WaitForEndOfFrame();
+
+					SendToLog("H89LDR.BIN SENT SUCCESSFULLY");
+					SendToLog("MAKE SURE YOU HAVE A DISK IN THE HEATHKIT COMPUTER DISK DRIVE THEN");
+					SendToLog("- CLICK THE \"SAVE LDR\" BUTTON TO SAVE THE LOADER TO A DISK -");
+					SendToLog("SAVING TO A DISK ON THE HEATHKIT COMPUTER WILL ALLOW YOU TO BOOT THE HEATHKIT");
+					SendToLog("DIRECTLY INTO H89LDR WITHOUT HAVING TO ENTER THE BYTE CODE AGAIN");
+
+					text.text = "SAVE LDR";
 				}
-
-				SendToLog("H89LDR.BIN SENT SUCCESSFULLY - CLICK THE \"SAVE LDR\" BUTTON TO SAVE TO A DISK");
-
-				text.text = "SAVE LDR";
+				else
+				{
+					SendToLog("ERROR - H89LDR3.BIN NOT FOUND");
+				}
 			}
 			else
 			{
@@ -814,6 +832,8 @@ public class H8DImager : MonoBehaviour
 				text.text = "SEND LDR";
 			}
 		}
+
+		yield return new WaitForEndOfFrame();
 	}
 
 	public void AbortPressed()
