@@ -47,6 +47,8 @@ public class H8DImager : MonoBehaviour
 	public UnityEngine.UI.Button clientStatusButton;
 	public UnityEngine.UI.Button saveLoaderButton;
 	public UnityEngine.UI.Toggle driveOverride;
+	public GameObject saveLoaderPanel;
+	public GameObject sendLoaderPanel;
 
 	private SerialPort serialPort;
 	private int inBufIdx;
@@ -100,6 +102,45 @@ public class H8DImager : MonoBehaviour
 
 		//SendToLog(comPortNamesList.Count.ToString() + " ports detected");
 		SendToLog("DISK IMAGER READY");
+	}
+
+	void COMOpen()
+	{
+		int baud = 9600;
+		string comPortString = comDropdown.captionText.text;
+
+		//SendToLog("Attempt to open " + comPortString);
+
+		if (serialPort != null && serialPort.IsOpen)
+		{
+			serialPort.Close();
+			serialPort = null;
+		}
+
+		//SendToLog("Opening " + comPortString);
+
+		serialPort = new SerialPort(comPortString, baud, Parity.None, 8, StopBits.One);
+		serialPort.Handshake = Handshake.None;
+
+		SendToLog(serialPort.PortName + " baud=" + baud.ToString());
+
+		PlayerPrefs.SetString("port", serialPort.PortName);
+
+		try
+		{
+			serialPort.Open();
+			serialPort.RtsEnable = true;
+			serialPort.DtrEnable = true;
+
+			//SendToLog("SerialPort open");
+		}
+		catch
+		{
+			serialPort.Close();
+			serialPort = null;
+
+			//SendToLog("No serial port found");
+		}
 	}
 
 	void ShowHelp()
@@ -190,45 +231,7 @@ public class H8DImager : MonoBehaviour
 	{
 		if (serialPort == null || !serialPort.IsOpen)
 		{
-			int baud = 9600;
-			string comPortString = comDropdown.captionText.text;
-
-			//SendToLog("Attempt to open " + comPortString);
-
-			if (serialPort != null && serialPort.IsOpen)
-			{
-				serialPort.Close();
-				serialPort = null;
-			}
-
-			//SendToLog("Opening " + comPortString);
-
-			yield return new WaitForEndOfFrame();
-
-			serialPort = new SerialPort(comPortString, baud, Parity.None, 8, StopBits.One);
-			serialPort.Handshake = Handshake.None;
-
-			SendToLog(serialPort.PortName + " baud=" + baud.ToString());
-
-			PlayerPrefs.SetString("port", serialPort.PortName);
-
-			yield return new WaitForEndOfFrame();
-
-			try
-			{
-				serialPort.Open();
-				serialPort.RtsEnable = true;
-				serialPort.DtrEnable = true;
-
-				//SendToLog("SerialPort open");
-			}
-			catch
-			{
-				serialPort.Close();
-				serialPort = null;
-
-				//SendToLog("No serial port found");
-			}
+			COMOpen();
 		}
 
 		yield return new WaitForEndOfFrame();
@@ -789,51 +792,77 @@ public class H8DImager : MonoBehaviour
 
 		UnityEngine.UI.Text text = saveLoaderButton.GetComponentInChildren<UnityEngine.UI.Text>();
 
+		ShowSendLoader();
+		while (sendLoaderPanel.activeInHierarchy)
+		{
+			yield return new WaitForEndOfFrame();
+		}
+
+		if (serialPort == null || !serialPort.IsOpen)
+		{
+			COMOpen();
+		}
+
 		if (serialPort != null && serialPort.IsOpen)
 		{
-			if (text.text.Equals("SEND LDR"))
+			SendToLog("SENDING H89LDR3.BIN");
+
+			yield return new WaitForEndOfFrame();
+
+			if (System.IO.File.Exists(filePath))
 			{
-				SendToLog("SENDING H89LDR3.BIN");
+				// sends loader in reverse byte order
+				byte[] loader = System.IO.File.ReadAllBytes(filePath);
+				for (int i = loader.Length - 1; i >= 0; i--)
+				{
+					buf[0] = loader[i];
+					serialPort.Write(buf, 0, 1);
+				}
 
 				yield return new WaitForEndOfFrame();
 
-				if (System.IO.File.Exists(filePath))
-				{
-					// sends loader in reverse byte order
-					byte[] loader = System.IO.File.ReadAllBytes(filePath);
-					for (int i = loader.Length - 1; i >= 0; i--)
-					{
-						buf[0] = loader[i];
-						serialPort.Write(buf, 0, 1);
-					}
+				SendToLog("H89LDR.BIN SENT SUCCESSFULLY");
 
-					yield return new WaitForEndOfFrame();
-
-					SendToLog("H89LDR.BIN SENT SUCCESSFULLY");
-					SendToLog("MAKE SURE YOU HAVE A DISK IN THE HEATHKIT COMPUTER DISK DRIVE THEN");
-					SendToLog("- CLICK THE \"SAVE LDR\" BUTTON TO SAVE THE LOADER TO A DISK -");
-					SendToLog("SAVING TO A DISK ON THE HEATHKIT COMPUTER WILL ALLOW YOU TO BOOT THE HEATHKIT");
-					SendToLog("DIRECTLY INTO H89LDR WITHOUT HAVING TO ENTER THE BYTE CODE AGAIN");
-
-					text.text = "SAVE LDR";
-				}
-				else
-				{
-					SendToLog("ERROR - H89LDR3.BIN NOT FOUND");
-				}
+				ShowSaveLoader();
 			}
 			else
 			{
-				buf[0] = (byte)'S';
-				serialPort.Write(buf, 0, 1);
-
-				SendToLog("LOADER SAVED TO DISK");
-
-				text.text = "SEND LDR";
+				SendToLog("ERROR - H89LDR3.BIN NOT FOUND");
 			}
 		}
 
 		yield return new WaitForEndOfFrame();
+	}
+
+	void ShowSendLoader()
+	{
+		sendLoaderPanel.SetActive(true);
+	}
+
+	public void HideSendLoader()
+	{
+		sendLoaderPanel.SetActive(false);
+	}
+
+	void ShowSaveLoader()
+	{
+		saveLoaderPanel.SetActive(true);
+	}
+
+	public void HideSaveLoader()
+	{
+		saveLoaderPanel.SetActive(false);
+	}
+
+	public void SaveLoaderButton()
+	{
+		byte[] buf = new byte[2];
+		buf[0] = (byte)'S';
+		serialPort.Write(buf, 0, 1);
+
+		SendToLog("LOADER SAVED TO DISK");
+
+		HideSaveLoader();
 	}
 
 	public void AbortPressed()
