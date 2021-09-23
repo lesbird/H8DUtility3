@@ -1364,8 +1364,17 @@ public class H8DCataloger : MonoBehaviour
 				string filePath = System.IO.Path.Combine(targetFolderPath, s);
 
 				//Debug.Log("filePath=" + filePath);
+				if (IsBinaryFile())
+				{
+					System.IO.File.WriteAllBytes(filePath, fileBuffer);
+				}
+				else
+				{
+					string text = System.Text.Encoding.ASCII.GetString(fileBuffer);
+					string formattedText = FormatForView(text);
 
-				System.IO.File.WriteAllBytes(filePath, fileBuffer);
+					System.IO.File.WriteAllText(filePath, formattedText);
+				}
 			}
 		}
 	}
