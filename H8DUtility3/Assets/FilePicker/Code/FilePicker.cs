@@ -250,7 +250,7 @@ public class FilePicker : MonoBehaviour
 
     public void ChangeDrive(int driveIdx)
     {
-        string driveStr = driveDropdown.options[driveIdx].text;
+        string driveStr = driveDropdown.captionText.text;
         directoryPath = driveStr;
         ShowPicker(requireFileName);
     }
