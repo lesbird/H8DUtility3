@@ -26,9 +26,9 @@ public class FilePicker : MonoBehaviour
     public UnityEngine.UI.Text pathText;
     public UnityEngine.UI.InputField fileInputField;
     public UnityEngine.UI.Button fileButtonPrefab;
-    public UnityEngine.UI.Scrollbar scrollBar;
     public RectTransform createFolderPanel;
     public UnityEngine.UI.InputField createFolderInputField;
+    public UnityEngine.UI.Dropdown driveDropdown;
 
     public delegate void OnCompleteCallback(string filePath);
     public OnCompleteCallback onCompleteCallback;
@@ -79,7 +79,10 @@ public class FilePicker : MonoBehaviour
         requireFileName = needFileName;
 
         directoryContents.Clear();
-        scrollBar.value = 0;
+
+        string[] drives = System.IO.Directory.GetLogicalDrives();
+        List<string> driveList = new List<string>(drives);
+        driveDropdown.AddOptions(driveList);
 
         directoryContents.Add("[..]");
 
@@ -118,7 +121,6 @@ public class FilePicker : MonoBehaviour
             }
         }
 
-        float topy = 220;
         for (int i = 0; i < directoryContents.Count; i++)
         {
             UnityEngine.UI.Button fileButton = null;
@@ -131,16 +133,9 @@ public class FilePicker : MonoBehaviour
                 fileButton = Instantiate(fileButtonPrefab, contentRoot);
             }
             fileButton.gameObject.SetActive(true);
-            fileButton.transform.position = Vector3.zero;
-            fileButton.transform.localPosition = Vector3.zero;
-            fileButton.transform.localScale = Vector3.one;
             UnityEngine.UI.Text text = fileButton.GetComponentInChildren<UnityEngine.UI.Text>();
 
             text.text = directoryContents[i];
-
-            Vector3 pos = Vector3.zero;
-            pos.y = topy - (i * 40);
-            fileButton.transform.localPosition = pos;
         }
 
         for (int i = directoryContents.Count; i < contentRoot.childCount; i++)
@@ -251,6 +246,13 @@ public class FilePicker : MonoBehaviour
                 fileInputField.text = text.text;
             }
         }
+    }
+
+    public void ChangeDrive(int driveIdx)
+    {
+        string driveStr = driveDropdown.options[driveIdx].text;
+        directoryPath = driveStr;
+        ShowPicker(requireFileName);
     }
 
     public string GetFolderName()
