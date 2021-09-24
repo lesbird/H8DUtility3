@@ -530,9 +530,17 @@ public class H8DCataloger : MonoBehaviour
 		} while (grp != 0);
 
 		bytes_to_read = entry.last_sector_index * 256;
-		if (bytes_to_read != 0)
+
+		//string fileName = System.Text.Encoding.ASCII.GetString(entry.filename);
+		//string fileExt = System.Text.Encoding.ASCII.GetString(entry.fileext);
+		//Debug.Log("bytes_to_read=" + bytes_to_read.ToString() + " fileBufferOffset=" + fileBufferOffset.ToString() + " fileBuffer.Length=" + fileBuffer.Length.ToString() + " diskImageOffset=" + diskImageOffset.ToString() + " diskImageBuffer.Length=" + diskImageBuffer.Length.ToString());
+
+		if (bytes_to_read > 0)
 		{
-			System.Buffer.BlockCopy(diskImageBuffer, diskImageOffset, fileBuffer, fileBufferOffset, bytes_to_read);
+			if (diskImageOffset < diskImageBuffer.Length)
+			{
+				System.Buffer.BlockCopy(diskImageBuffer, diskImageOffset, fileBuffer, fileBufferOffset, bytes_to_read);
+			}
 		}
 	}
 
@@ -559,8 +567,7 @@ public class H8DCataloger : MonoBehaviour
 		int albSize = is2s80t ? 0x800 : 0x400; // for computing file size
 
 		int systemTracks = 3;
-		int unusableSpace = is2s80t ? 4096 : 2048;
-		//int diskSize = (((diskBufferSize - (systemTracks * trackSize)) / 1024) - unusableSpace) * 1024;
+		int unusableSpace = is2s80t ? 4096 : 2048; // for computing remaining space
 		int diskSize = diskBufferSize - (systemTracks * trackSize) - unusableSpace;
 
 		// intlv=4
@@ -577,6 +584,7 @@ public class H8DCataloger : MonoBehaviour
 		// 0x2700
 		// 0x2100
 		// 0x2500
+		int[] skewedDirOffsets = { 0x1E00, 0x2200, 0x2600, 0x2000, 0x2400, 0x1F00, 0x2300, 0x2700, 0x2100, 0x2500 };
 
 		while (true)
 		{
@@ -606,9 +614,32 @@ public class H8DCataloger : MonoBehaviour
 					entry.sectors = diskImageBuffer[offset++]; // [15] number of sectors used in last alb
 					System.Buffer.BlockCopy(diskImageBuffer, offset, entry.alloc_map, 0, 16); // [16-31] allocation block map
 					offset += 16;
+
+					if ((offset % 256) == 0)
+					{
+						dirArrayIdx++;
+						offset = skewedDirOffsets[dirArrayIdx];
+					}
+					if (offset == 0x2700)
+					{
+						offset = 0;
+						break;
+					}
+
+					/*
 					if (!is2s80t)
 					{
 						// HARD SECTOR 1S40T or 2S40T
+						// 0x1E00
+						// 0x2200
+						// 0x2600
+						// 0x2000
+						// 0x2400
+						// 0x1F00
+						// 0x2300
+						// 0x2700
+						// 0x2100
+						// 0x2500
 						if (offset == 0x1F00)
                         {
 							offset = 0x2200;
@@ -649,6 +680,7 @@ public class H8DCataloger : MonoBehaviour
 							break;
 						}
 					}
+					*/
 					if (entry.flag == 0xE5 || entry.filename[0] == 0xE5)
 					{
 						// skip invalid entries
@@ -995,7 +1027,7 @@ public class H8DCataloger : MonoBehaviour
 					str += c;
 					n++;
 				}
-				if (c == 0x1A)
+				if (c == 0x1A || c == 0x00)
 				{
 					// CTL-Z terminates text files in CP/M
 					term = true;
@@ -1501,6 +1533,11 @@ public class H8DCataloger : MonoBehaviour
 	// insert a file into a CP/M disk image
 	public void AddCPMButton()
 	{
+	}
+
+	public string ByteBufferToString(byte[] b)
+	{
+		return System.Text.Encoding.ASCII.GetString(b);
 	}
 
 	public bool ByteCompare(byte[] a, byte[] b)
