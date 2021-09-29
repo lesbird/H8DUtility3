@@ -105,20 +105,17 @@ public class FilePicker : MonoBehaviour
             directoryContents.Add(s);
         }
 
-        if (requireFileName)
+        string[] fileArray = System.IO.Directory.GetFiles(directoryPath);
+        for (int i = 0; i < fileArray.Length; i++)
         {
-            string[] fileArray = System.IO.Directory.GetFiles(directoryPath);
-            for (int i = 0; i < fileArray.Length; i++)
+            string fileName = System.IO.Path.GetFileName(fileArray[i]);
+            if (fileName[0] == '.')
             {
-                string fileName = System.IO.Path.GetFileName(fileArray[i]);
-                if (fileName[0] == '.')
-                {
-                    // filder out files that begin with . such as .DSStore, etc.
-                    continue;
-                }
-                string s = fileName;
-                directoryContents.Add(s);
+                // filter out files that begin with . such as .DSStore, etc.
+                continue;
             }
+            string s = fileName;
+            directoryContents.Add(s);
         }
 
         for (int i = 0; i < directoryContents.Count; i++)
@@ -133,9 +130,15 @@ public class FilePicker : MonoBehaviour
                 fileButton = Instantiate(fileButtonPrefab, contentRoot);
             }
             fileButton.gameObject.SetActive(true);
-            UnityEngine.UI.Text text = fileButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            fileButton.interactable = true;
 
+            UnityEngine.UI.Text text = fileButton.GetComponentInChildren<UnityEngine.UI.Text>();
             text.text = directoryContents[i];
+
+            if (text.text[0] != '[')
+            {
+                fileButton.interactable = requireFileName;
+            }
         }
 
         for (int i = directoryContents.Count; i < contentRoot.childCount; i++)

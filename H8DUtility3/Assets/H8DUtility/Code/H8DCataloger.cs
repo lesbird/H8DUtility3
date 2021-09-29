@@ -9,7 +9,7 @@ public class H8DCataloger : MonoBehaviour
 	public UnityEngine.UI.InputField fileTitlePrefab;
 	public UnityEngine.UI.ScrollRect diskImageListView;
 	public UnityEngine.UI.ScrollRect diskFileListView;
-	public UnityEngine.UI.Text workingFolderText;
+	public UnityEngine.UI.InputField workingFolderText;
 	public UnityEngine.UI.Text diskImageCount;
 	public UnityEngine.UI.Text diskFileCount;
 	public UnityEngine.UI.InputField diskLabelText;

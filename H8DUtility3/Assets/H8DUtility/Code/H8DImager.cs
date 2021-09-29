@@ -564,7 +564,7 @@ public class H8DImager : MonoBehaviour
 	public void SendDiskPressed()
 	{
 		FilePicker.Instance.onCompleteCallback += SendDiskFolderComplete;
-		FilePicker.Instance.ShowPicker();
+		FilePicker.Instance.ShowPicker(true);
 	}
 
 	public void SendDiskFolderComplete(string path)
