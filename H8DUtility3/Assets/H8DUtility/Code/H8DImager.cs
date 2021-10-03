@@ -47,6 +47,12 @@ public class H8DImager : MonoBehaviour
 	public UnityEngine.UI.Button clientStatusButton;
 	public UnityEngine.UI.Button saveLoaderButton;
 	public UnityEngine.UI.Toggle driveOverride;
+	public UnityEngine.UI.Toggle h37Toggle;
+	public UnityEngine.UI.InputField sectorsPerTrackField;
+	public UnityEngine.UI.Toggle baud9600Toggle;
+	public UnityEngine.UI.Toggle baud19200Toggle;
+	public UnityEngine.UI.Toggle baud38400Toggle;
+	public UnityEngine.UI.Toggle baud56000Toggle;
 	public GameObject saveLoaderPanel;
 	public GameObject sendLoaderPanel;
 
@@ -55,14 +61,22 @@ public class H8DImager : MonoBehaviour
 	private int expectedBytes;
 	private bool readTrack;
 
+	private int h37Sectors;
+	private int h37SectorSize;
+	private int h37Tracks;
+	private int h37Sides;
+	private string h37Density;
+
 	private byte volumeOverrideValue;
 
 	private bool isReadingDisk;
 	private bool isWritingDisk;
 	private bool abortTransfer;
 
+	public int baudUpdate;
+
 	private bool saveImage;
-	private byte[] readBuf = new byte[(2560 * 80 * 2) + 1]; // +1 to account for handshake byte
+	private byte[] readBuf = new byte[(8192 * 80 * 2) + 1]; // +1 to account for handshake byte
 	private int readBufIdx;
 	private byte[] sendBuf;
 	private int sendBufIdx;
@@ -96,6 +110,7 @@ public class H8DImager : MonoBehaviour
 				if (comDropdown.options[i].text.Equals(lastPortUsed))
 				{
 					comDropdown.value = i;
+					baudUpdate = PlayerPrefs.GetInt("baud");
 				}
 			}
 		}
@@ -106,7 +121,7 @@ public class H8DImager : MonoBehaviour
 
 	void COMOpen()
 	{
-		int baud = 9600;
+		int baud = baud9600Toggle.isOn ? 9600 : baud19200Toggle.isOn ? 19200 : baud38400Toggle.isOn ? 38400 : 56000;
 		string comPortString = comDropdown.captionText.text;
 
 		//SendToLog("Attempt to open " + comPortString);
@@ -121,10 +136,12 @@ public class H8DImager : MonoBehaviour
 
 		serialPort = new SerialPort(comPortString, baud, Parity.None, 8, StopBits.One);
 		serialPort.Handshake = Handshake.None;
+		serialPort.ReadBufferSize = 4096;
 
-		SendToLog(serialPort.PortName + " baud=" + baud.ToString());
+		SendToLog(serialPort.PortName + " BAUD=" + baud.ToString());
 
 		PlayerPrefs.SetString("port", serialPort.PortName);
+		PlayerPrefs.SetInt("baud", baud);
 
 		try
 		{
@@ -148,18 +165,83 @@ public class H8DImager : MonoBehaviour
 		//SendToLog("<color=lime>H8D DISK IMAGER</color>");
 	}
 
+	public void H37ToggleSelected()
+	{
+		if (h37Toggle.isOn)
+        {
+			driveOverride.isOn = true;
+			driveDSToggle.isOn = true;
+        }
+	}
+
+	public void Baud9600Toggle()
+	{
+		if (baudUpdate != 0)
+		{
+			return;
+		}
+		baudUpdate = 9600;
+	}
+
+	public void Baud19200Toggle()
+	{
+		if (baudUpdate != 0)
+		{
+			return;
+		}
+		baudUpdate = 19200;
+	}
+
+	public void Baud38400Toggle()
+	{
+		if (baudUpdate != 0)
+		{
+			return;
+		}
+		baudUpdate = 38400;
+	}
+
+	public void Baud56000Toggle()
+	{
+		if (baudUpdate != 0)
+		{
+			return;
+		}
+		baudUpdate = 56000;
+	}
+
 	void Update()
 	{
-		if (Input.GetKeyDown(KeyCode.T))
-		{
-			SendToLog("Test line " + Random.Range(0, 65536).ToString());
-		}
+		//if (Input.GetKeyDown(KeyCode.T))
+		//{
+		//	SendToLog("Test line " + Random.Range(0, 65536).ToString());
+		//}
 
 		if (saveImage)
         {
 			saveImage = false;
 			SaveDiskImage();
         }
+
+		if (baudUpdate != 0)
+		{
+			baud9600Toggle.isOn = (baudUpdate == 9600) ? true : false;
+			baud19200Toggle.isOn = (baudUpdate == 19200) ? true : false;
+			baud38400Toggle.isOn = (baudUpdate == 38400) ? true : false;
+			baud56000Toggle.isOn = (baudUpdate == 56000) ? true : false;
+
+			SendToLog("BAUD RATE SET TO " + baudUpdate.ToString("N0"));
+
+			if (serialPort != null && serialPort.IsOpen)
+			{
+				serialPort.Close();
+				serialPort = null;
+
+				DisableButtons();
+			}
+
+			baudUpdate = 0;
+		}
 
 		if (!isReadingDisk && !isWritingDisk)
 		{
@@ -213,9 +295,25 @@ public class H8DImager : MonoBehaviour
 
 		FilePicker.Instance.onCompleteCallback -= SaveDiskImageComplete;
 
-		byte[] data = new byte[readBufIdx];
-		System.Buffer.BlockCopy(readBuf, 0, data, 0, readBufIdx);
-		System.IO.File.WriteAllBytes(path, data);
+		if (h37Toggle.isOn)
+		{
+			// "012345678901234567890123456789012" 32 bytes meta data
+			// "SPT=xx SSZ=xxxx TRK=xx SID=xx MFM"
+			byte[] data = new byte[readBufIdx + 32];
+			System.Buffer.BlockCopy(readBuf, 0, data, 0, readBufIdx);
+			string diskSpecs = "SPT=" + h37Sectors.ToString("D2") + " SSZ=" + h37SectorSize.ToString("D4") + " TRK=" + h37Tracks.ToString("D2") + " SID=" + h37Sides.ToString() + " " + h37Density;
+			byte[] specs = System.Text.Encoding.ASCII.GetBytes(diskSpecs);
+			System.Buffer.BlockCopy(specs, 0, data, readBufIdx, specs.Length);
+			System.IO.File.WriteAllBytes(path, data);
+		}
+		else
+		{
+			byte[] data = new byte[readBufIdx];
+			System.Buffer.BlockCopy(readBuf, 0, data, 0, readBufIdx);
+			System.IO.File.WriteAllBytes(path, data);
+		}
+
+		SendToLog("Total bytes " + readBufIdx.ToString("N0"));
 
 		clientStatusButton.interactable = true;
 		EnableButtons();
@@ -276,6 +374,27 @@ public class H8DImager : MonoBehaviour
 		}
 	}
 
+	public void DiskQueryPressed()
+	{
+		StartCoroutine(DiskQueryCoroutine());
+	}
+
+	IEnumerator DiskQueryCoroutine()
+	{
+		byte[] cmdBuf = new byte[16];
+
+		cmdBuf[0] = (byte)'Q';
+		serialPort.Write(cmdBuf, 0, 1);
+
+		yield return new WaitForEndOfFrame();
+
+		int cmd = serialPort.ReadByte();
+		if (cmd == cmdBuf[0])
+		{
+			ShowQueryResults();
+		}
+	}
+
 	public void ReadDiskPressed()
 	{
 		StartCoroutine(ReadDiskCoroutine());
@@ -305,36 +424,37 @@ public class H8DImager : MonoBehaviour
 				drive80TrkToggle.isOn = false;
 			}
 
+			int res = 0;
 			byte[] cmdBuf = new byte[16];
+			byte[] inBuf = new byte[1024];
 
 			// determine if using H8DIMGR2 or H89LDR
 			if (driveDropdown.captionText.text.Equals("SY1"))
 			{
+				drive80TrkToggle.isOn = true;
 				cmdBuf[0] = (byte)'1';
-			}
-			else if (driveDropdown.captionText.text.Equals("SY2"))
-			{
-				cmdBuf[0] = (byte)'2';
 			}
 			else
 			{
 				cmdBuf[0] = (byte)'0';
 			}
+
 			// send drive designator (0,1,2)
 			serialPort.Write(cmdBuf, 0, 1);
-			int c = serialPort.ReadByte();
+			res = serialPort.ReadByte();
 
 			//Debug.Log(cmdBuf[0].ToString() + " sent reply=" + c.ToString());
 
 			bool h8dImgr = true;
-			if (c == '?')
+			if (res == '?')
 			{
 				// client did not understand so using H89LDR
 				h8dImgr = false;
-				c = 0;
+				res = '0';
 			}
 
-			SendToLog("DRIVE SY" + (char)c + ": SELECTED");
+			string driveDesignator = h37Toggle.isOn ? "DK" : "SY";
+			SendToLog("DRIVE " + driveDesignator + (char)res + ": SELECTED");
 			
 			if (h8dImgr)
             {
@@ -367,50 +487,67 @@ public class H8DImager : MonoBehaviour
 							cmdBuf[0] = (byte)'6';
 						}
                     }
+					
 					serialPort.Write(cmdBuf, 0, 1);
-					int cmd = serialPort.ReadByte();
-					if (cmd == cmdBuf[0])
+					res = serialPort.ReadByte();
+					if (res == cmdBuf[0])
 					{
 						// disk type confirmed
 					}
 					else
                     {
-						SendToLog("RETURN DISK TYPE " + (char)cmd + " DOES NOT MATCH " + (char)cmdBuf[0]);
+						SendToLog("RETURN DISK TYPE " + (char)res + " DOES NOT MATCH " + (char)cmdBuf[0]);
                     }
 				}
 				else
 				{
+					// query system to auto-detect disk type
 					cmdBuf[0] = (byte)'Q';
 					serialPort.Write(cmdBuf, 0, 1);
-					int cmd = serialPort.ReadByte();
+					res = serialPort.ReadByte();
 
 					//Debug.Log(cmdBuf[0].ToString() + " sent reply=" + cmd.ToString());
 
-					if (cmd == 'Q')
+					if (res == 'Q')
 					{
-						diskType = serialPort.ReadByte();
-
-						SendToLog("DISK QUERY RETURNED " + diskType.ToString());
-
-						if (diskType == 1)
+						if (h37Toggle.isOn)
 						{
-							drive80TrkToggle.isOn = false;
-							driveDSToggle.isOn = true;
+							ShowQueryResults();
+							if (drive80TrkToggle.isOn)
+                            {
+								diskType = driveDSToggle.isOn ? 3 : 2;
+                            }
+							else
+                            {
+								diskType = driveDSToggle.isOn ? 1 : 0;
+                            }
 						}
-						else if (diskType == 2)
+						else
 						{
-							drive80TrkToggle.isOn = true;
-							driveDSToggle.isOn = false;
-						}
-						else if (diskType == 3)
-						{
-							drive80TrkToggle.isOn = true;
-							driveDSToggle.isOn = true;
+							diskType = serialPort.ReadByte();
+
+							SendToLog("DISK QUERY RETURNED " + diskType.ToString());
+
+							if (diskType == 1)
+							{
+								drive80TrkToggle.isOn = false;
+								driveDSToggle.isOn = true;
+							}
+							else if (diskType == 2)
+							{
+								drive80TrkToggle.isOn = true;
+								driveDSToggle.isOn = false;
+							}
+							else if (diskType == 3)
+							{
+								drive80TrkToggle.isOn = true;
+								driveDSToggle.isOn = true;
+							}
 						}
 					}
 				}
 			}
-			
+
 			if (diskType == 0)
 			{
 				SendToLog("DISKTYPE 1S40T");
@@ -428,8 +565,25 @@ public class H8DImager : MonoBehaviour
 				SendToLog("DISKTYPE 2S80T");
 			}
 
+			// final drive synchronization
+			if (h8dImgr)
+			{
+				cmdBuf[0] = (byte)'0';
+				if (diskType == 2 || diskType == 3)
+                {
+					// 80 track disks use SY1
+					cmdBuf[0] = (byte)'1';
+                }
+				serialPort.Write(cmdBuf, 0, 1);
+				res = serialPort.ReadByte();
+
+				yield return new WaitForSeconds(1);
+			}
+
 			cmdBuf[0] = (byte)'R'; // switch to read disk state
 			serialPort.Write(cmdBuf, 0, 1);
+
+			yield return new WaitForSeconds(1);
 
 			int track = 0;
 			int expectedTracks = (diskType == 0) ? 40 : (diskType == 1) ? 80 : (diskType == 2) ? 80 : 160;
@@ -452,15 +606,36 @@ public class H8DImager : MonoBehaviour
 				cmdBuf[0] = (byte)'R'; // ask for next track
 				serialPort.Write(cmdBuf, 0, 1);
 
+				int expectedBytes = 1;
+
 				int trackBytes = 0;
 				while (true)
 				{
 					int bytesToRead = serialPort.BytesToRead;
 					if (bytesToRead > 0)
                     {
-						serialPort.Read(readBuf, readBufIdx, bytesToRead);
-						readBufIdx += bytesToRead;
-						trackBytes += bytesToRead;
+						if (expectedBytes == 1)
+						{
+							expectedBytes = 2560;
+							sectorsPerTrackField.text = "10";
+
+							if (h37Toggle.isOn)
+							{
+								int lowbyte = serialPort.ReadByte();
+								int hibyte = serialPort.ReadByte();
+								int sectorsPerTrack = serialPort.ReadByte();
+								sectorsPerTrackField.text = sectorsPerTrack.ToString();
+								expectedBytes = (hibyte * 256) + lowbyte;
+								bytesToRead -= 3;
+							}
+						}
+						if (bytesToRead > 0)
+						{
+							serialPort.Read(inBuf, 0, bytesToRead);
+							System.Buffer.BlockCopy(inBuf, 0, readBuf, readBufIdx, bytesToRead);
+							readBufIdx += bytesToRead;
+							trackBytes += bytesToRead;
+						}
 					}
 
 					yield return new WaitForEndOfFrame();
@@ -476,16 +651,19 @@ public class H8DImager : MonoBehaviour
 						mins = (int)trackTime / 60;
 						secs = (int)trackTime % 60;
 						t = mins.ToString() + ":" + secs.ToString("D2");
-						int n = Mathf.Min(trackBytes, 2560);
-						trackNumberField.text = actualTrack.ToString() + "/" + actualSide.ToString() + " [" + n.ToString("D4") + "/2560 " + t + "]";
+						int n = Mathf.Min(trackBytes, expectedBytes);
+						trackNumberField.text = actualTrack.ToString() + "/" + actualSide.ToString() + " [" + n.ToString("D4") + "/" + expectedBytes.ToString() + " " + t + "]";
 					}
 
-					float progress = (float)readBufIdx / (expectedTracks * 2560);
-					progressBar.value = progress;
-					progress = Mathf.RoundToInt(progress * 100);
-					progressValue.text = progress.ToString("N3") + "%";
+					if (expectedBytes > 1)
+					{
+						float progress = (float)readBufIdx / (expectedTracks * expectedBytes);
+						progressBar.value = progress;
+						progress = Mathf.RoundToInt(progress * 100);
+						progressValue.text = progress.ToString("N3") + "%";
+					}
 
-					if (trackBytes >= 2560)
+					if (trackBytes > expectedBytes) // a full track is expectedBytes + 1
 					{
 						if (track == 0)
 						{
@@ -501,7 +679,7 @@ public class H8DImager : MonoBehaviour
 						}
 
 						// check for handshake byte 'R' or 'r' at 2561
-						if (trackBytes == 2561)
+						if (trackBytes == expectedBytes + 1)
 						{
 							if (readBuf[readBufIdx - 1] == (byte)'R' || readBuf[readBufIdx - 1] == (byte)'r')
 							{
@@ -525,6 +703,34 @@ public class H8DImager : MonoBehaviour
 		}
 
 		isReadingDisk = false;
+	}
+
+	void ShowQueryResults()
+	{
+		int sectors = serialPort.ReadByte();
+		int h37track = serialPort.ReadByte();
+		int h37side = serialPort.ReadByte();
+		int h37sector = serialPort.ReadByte();
+		int h37sectorLen = serialPort.ReadByte();
+		int h37crc1 = serialPort.ReadByte();
+		int h37crc2 = serialPort.ReadByte();
+		int numSides = serialPort.ReadByte();
+		int lobyte = serialPort.ReadByte();
+		int hibyte = serialPort.ReadByte();
+
+		h37sectorLen = (h37sectorLen == 0) ? 128 : (h37sectorLen == 1) ? 256 : (h37sectorLen == 2) ? 512 : 1024;
+
+		h37Sectors = sectors;
+		h37SectorSize = h37sectorLen;
+		h37Tracks = drive80TrkToggle.isOn ? 80 : 40;
+		h37Sides = numSides;
+		h37Density = "MFM"; // or " FM"
+
+		driveDSToggle.isOn = (numSides == 2) ? true : false;
+
+		int bytes = (hibyte * 256) + lobyte;
+		sectorsPerTrackField.text = sectors.ToString() + " / " + h37sectorLen.ToString();
+		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString());
 	}
 
 	public void ReadTrack()
