@@ -48,6 +48,7 @@ public class H8DImager : MonoBehaviour
 	public UnityEngine.UI.Button saveLoaderButton;
 	public UnityEngine.UI.Toggle driveOverride;
 	public UnityEngine.UI.Toggle h37Toggle;
+	public UnityEngine.UI.Toggle densityToggle;
 	public UnityEngine.UI.InputField sectorsPerTrackField;
 	public UnityEngine.UI.Toggle baud9600Toggle;
 	public UnityEngine.UI.Toggle baud19200Toggle;
@@ -234,6 +235,14 @@ public class H8DImager : MonoBehaviour
 
 			if (serialPort != null && serialPort.IsOpen)
 			{
+				//byte[] cmdBuf = new byte[16];
+				//cmdBuf[0] = (byte)'9';
+				//if (baud19200Toggle.isOn)
+				//{
+				//	cmdBuf[0] = (byte)'(';
+				//}
+				//serialPort.Write(cmdBuf, 0, 1);
+
 				serialPort.Close();
 				serialPort = null;
 
@@ -374,6 +383,30 @@ public class H8DImager : MonoBehaviour
 		}
 	}
 
+	bool SetDrive()
+	{
+		byte[] cmdBuf = new byte[16];
+
+		if (driveDropdown.captionText.text.Equals("SY1"))
+		{
+			drive80TrkToggle.isOn = true;
+			cmdBuf[0] = (byte)'1';
+		}
+		else
+		{
+			cmdBuf[0] = (byte)'0';
+		}
+
+		// send drive designator (0,1,2)
+		serialPort.Write(cmdBuf, 0, 1);
+		int res = serialPort.ReadByte();
+		if (res == cmdBuf[0])
+		{
+			return true;
+		}
+		return false;
+	}
+
 	public void DiskQueryPressed()
 	{
 		StartCoroutine(DiskQueryCoroutine());
@@ -383,15 +416,18 @@ public class H8DImager : MonoBehaviour
 	{
 		byte[] cmdBuf = new byte[16];
 
-		cmdBuf[0] = (byte)'Q';
-		serialPort.Write(cmdBuf, 0, 1);
-
-		yield return new WaitForEndOfFrame();
-
-		int cmd = serialPort.ReadByte();
-		if (cmd == cmdBuf[0])
+		if (SetDrive())
 		{
-			ShowQueryResults();
+			cmdBuf[0] = (byte)'Q';
+			serialPort.Write(cmdBuf, 0, 1);
+
+			yield return new WaitForEndOfFrame();
+
+			int cmd = serialPort.ReadByte();
+			if (cmd == cmdBuf[0])
+			{
+				ShowQueryResults();
+			}
 		}
 	}
 
@@ -424,10 +460,14 @@ public class H8DImager : MonoBehaviour
 				drive80TrkToggle.isOn = false;
 			}
 
+			// determine if using H8DIMGR2, H37IMGR or H89LDR
+			bool h8dImgr = SetDrive();
+
 			int res = 0;
 			byte[] cmdBuf = new byte[16];
 			byte[] inBuf = new byte[1024];
 
+			/*
 			// determine if using H8DIMGR2 or H89LDR
 			if (driveDropdown.captionText.text.Equals("SY1"))
 			{
@@ -452,6 +492,7 @@ public class H8DImager : MonoBehaviour
 				h8dImgr = false;
 				res = '0';
 			}
+			*/
 
 			string driveDesignator = h37Toggle.isOn ? "DK" : "SY";
 			SendToLog("DRIVE " + driveDesignator + (char)res + ": SELECTED");
@@ -624,7 +665,7 @@ public class H8DImager : MonoBehaviour
 								int lowbyte = serialPort.ReadByte();
 								int hibyte = serialPort.ReadByte();
 								int sectorsPerTrack = serialPort.ReadByte();
-								sectorsPerTrackField.text = sectorsPerTrack.ToString();
+								sectorsPerTrackField.text = sectorsPerTrack.ToString() + " / " + h37SectorSize.ToString();
 								expectedBytes = (hibyte * 256) + lowbyte;
 								bytesToRead -= 3;
 							}
@@ -674,7 +715,7 @@ public class H8DImager : MonoBehaviour
 							}
 							else
 							{
-								diskLabelField.text = "CP/M DISK IMAGE";
+								diskLabelField.text = "NON-HDOS DISK IMAGE";
 							}
 						}
 
@@ -717,6 +758,7 @@ public class H8DImager : MonoBehaviour
 		int numSides = serialPort.ReadByte();
 		int lobyte = serialPort.ReadByte();
 		int hibyte = serialPort.ReadByte();
+		int density = serialPort.ReadByte();
 
 		h37sectorLen = (h37sectorLen == 0) ? 128 : (h37sectorLen == 1) ? 256 : (h37sectorLen == 2) ? 512 : 1024;
 
@@ -724,13 +766,14 @@ public class H8DImager : MonoBehaviour
 		h37SectorSize = h37sectorLen;
 		h37Tracks = drive80TrkToggle.isOn ? 80 : 40;
 		h37Sides = numSides;
-		h37Density = "MFM"; // or " FM"
+		h37Density = density == 0x04 ? "MFM" : "FM";
 
 		driveDSToggle.isOn = (numSides == 2) ? true : false;
+		densityToggle.isOn = (density == 0x04) ? true : false;
 
 		int bytes = (hibyte * 256) + lobyte;
 		sectorsPerTrackField.text = sectors.ToString() + " / " + h37sectorLen.ToString();
-		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString());
+		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString() + " DENSITY=" + h37Density);
 	}
 
 	public void ReadTrack()
