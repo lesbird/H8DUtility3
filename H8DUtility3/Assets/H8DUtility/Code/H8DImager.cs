@@ -112,6 +112,7 @@ public class H8DImager : MonoBehaviour
 				{
 					comDropdown.value = i;
 					baudUpdate = PlayerPrefs.GetInt("baud");
+					//baudUpdate = 9600;
 				}
 			}
 		}
@@ -252,7 +253,16 @@ public class H8DImager : MonoBehaviour
 			baudUpdate = 0;
 		}
 
-		if (!isReadingDisk && !isWritingDisk)
+		if (isReadingDisk || isWritingDisk)
+		{
+			driveDropdown.interactable = false;
+			baud9600Toggle.interactable = false;
+			baud19200Toggle.interactable = false;
+			baud38400Toggle.interactable = false;
+			baud56000Toggle.interactable = false;
+			volumeNumberField.interactable = false;
+		}
+		else
 		{
 			volumeNumberField.interactable = volumeOverrideToggle.isOn;
 			if (volumeNumberField.interactable)
@@ -266,15 +276,24 @@ public class H8DImager : MonoBehaviour
 					}
 				}
 			}
+
 			if (driveOverride.isOn)
 			{
 				driveDSToggle.interactable = true;
-				drive80TrkToggle.interactable = true;
 			}
 			else
 			{
 				driveDSToggle.interactable = false;
-				drive80TrkToggle.interactable = false;
+			}
+
+			driveDropdown.interactable = true;
+			if (driveDropdown.captionText.text.Equals("SY1"))
+			{
+				drive80TrkToggle.isOn = true;
+			}
+			else
+			{
+				drive80TrkToggle.isOn = false;
 			}
 		}
 	}
@@ -353,6 +372,8 @@ public class H8DImager : MonoBehaviour
 
 			yield return new WaitForEndOfFrame();
 
+			bool clientIsReady = false;
+
 			while (true)
 			{
 				try
@@ -362,6 +383,7 @@ public class H8DImager : MonoBehaviour
 						int c = serialPort.ReadByte();
 						if (c == '?')
 						{
+							clientIsReady = true;
 							SendToLog("Client is ready");
 							EnableButtons();
 						}
@@ -380,6 +402,18 @@ public class H8DImager : MonoBehaviour
 
 				yield return new WaitForEndOfFrame();
 			}
+
+			if (clientIsReady)
+			{
+				// determine if using H37Imager
+				cmdBuf[0] = (byte)'3';
+				serialPort.Write(cmdBuf, 0, 1);
+				int res = serialPort.ReadByte();
+				if (res == cmdBuf[0])
+				{
+					h37Toggle.isOn = true;
+				}
+			}
 		}
 	}
 
@@ -389,7 +423,7 @@ public class H8DImager : MonoBehaviour
 
 		if (driveDropdown.captionText.text.Equals("SY1"))
 		{
-			drive80TrkToggle.isOn = true;
+			//drive80TrkToggle.isOn = true;
 			cmdBuf[0] = (byte)'1';
 		}
 		else
@@ -457,7 +491,7 @@ public class H8DImager : MonoBehaviour
 			if (!driveOverride.isOn)
 			{
 				driveDSToggle.isOn = false;
-				drive80TrkToggle.isOn = false;
+				//drive80TrkToggle.isOn = false;
 			}
 
 			// determine if using H8DIMGR2, H37IMGR or H89LDR
@@ -499,7 +533,7 @@ public class H8DImager : MonoBehaviour
 			
 			if (h8dImgr)
             {
-				if (driveOverride.isOn)
+				if (driveOverride.isOn && !h37Toggle.isOn)
 				{
 					diskType = 0;
 					/// 4 - set 1S40T
@@ -554,6 +588,8 @@ public class H8DImager : MonoBehaviour
 						if (h37Toggle.isOn)
 						{
 							ShowQueryResults();
+
+							cmdBuf[0] = (byte)'4';
 							if (drive80TrkToggle.isOn)
                             {
 								diskType = driveDSToggle.isOn ? 3 : 2;
@@ -562,6 +598,24 @@ public class H8DImager : MonoBehaviour
                             {
 								diskType = driveDSToggle.isOn ? 1 : 0;
                             }
+							if (diskType == 1)
+							{
+								cmdBuf[0] = (byte)'5';
+							}
+							else if (diskType == 2)
+							{
+								cmdBuf[0] = (byte)'6';
+							}
+							else if (diskType == 3)
+							{
+								cmdBuf[0] = (byte)'7';
+							}
+							serialPort.Write(cmdBuf, 0, 1);
+							res = serialPort.ReadByte();
+							if (res != cmdBuf[0])
+							{
+								SendToLog("DISKTYPE RETURNED " + (char)res + " INSTEAD OF " + (char)cmdBuf[0]);
+							}
 						}
 						else
 						{
@@ -571,17 +625,17 @@ public class H8DImager : MonoBehaviour
 
 							if (diskType == 1)
 							{
-								drive80TrkToggle.isOn = false;
+								//drive80TrkToggle.isOn = false;
 								driveDSToggle.isOn = true;
 							}
 							else if (diskType == 2)
 							{
-								drive80TrkToggle.isOn = true;
+								//drive80TrkToggle.isOn = true;
 								driveDSToggle.isOn = false;
 							}
 							else if (diskType == 3)
 							{
-								drive80TrkToggle.isOn = true;
+								//drive80TrkToggle.isOn = true;
 								driveDSToggle.isOn = true;
 							}
 						}
@@ -768,12 +822,14 @@ public class H8DImager : MonoBehaviour
 		h37Sides = numSides;
 		h37Density = density == 0x04 ? "MFM" : "FM";
 
-		driveDSToggle.isOn = (numSides == 2) ? true : false;
+		string densityStr = density == 0x04 ? "DD" : "SD";
+
+		//driveDSToggle.isOn = (numSides == 2) ? true : false;
 		densityToggle.isOn = (density == 0x04) ? true : false;
 
 		int bytes = (hibyte * 256) + lobyte;
 		sectorsPerTrackField.text = sectors.ToString() + " / " + h37sectorLen.ToString();
-		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString() + " DENSITY=" + h37Density);
+		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString() + " DENSITY=" + densityStr);
 	}
 
 	public void ReadTrack()

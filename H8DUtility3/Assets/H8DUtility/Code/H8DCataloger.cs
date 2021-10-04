@@ -465,27 +465,29 @@ public class H8DCataloger : MonoBehaviour
 
 	int ComputeHDOSFileSize(HDOSDirEntry entry, int sectorsPerGroup)
 	{
-		int grp_count = 1;
+		int grp_count = 0;
 		byte grp = entry.first_group_num;
-		if (grp < 4 || grp >= 200)
+		if (grp < 3 || grp >= 255)
 		{
 			return 0;
 		}
+
 		while (HDOSGrtTable[grp] != 0 && grp_count < 256)
 		{
-			if (grp < 4 || grp >= 200)
+			if (grp < 3)
 			{
 				return (-1);
 			}
 			grp = HDOSGrtTable[grp];
 			grp_count++;
 		}
+
 		if (grp_count == 256)
 		{
 			return (-1);
 		}
 
-		int total_size = ((grp_count - 1) * sectorsPerGroup) + entry.last_sector_index;
+		int total_size = (grp_count * sectorsPerGroup) + entry.last_sector_index;
 		return total_size;
 	}
 
@@ -511,8 +513,11 @@ public class H8DCataloger : MonoBehaviour
 		//Debug.Log("FillFileBufferHDOS()");
 
 		int grp = entry.first_group_num;
-		int fsize = ComputeHDOSFileSize(entry, disk_info.sectors_per_group);
-		int totalBytes = (fsize * disk_info.sectors_per_group * 256) + (entry.last_sector_index * 256);
+		int fsize = ComputeHDOSFileSize(entry, disk_info.sectors_per_group); // size in sectors
+		int totalBytes = (fsize + disk_info.sectors_per_group) * 256; // (fsize * disk_info.sectors_per_group * 256) + (entry.last_sector_index * 256);
+
+		Debug.Log("file size in bytes=" + totalBytes.ToString());
+
 		fileBuffer = new byte[totalBytes];
 
 		int bytes_to_read = 0;
@@ -540,8 +545,11 @@ public class H8DCataloger : MonoBehaviour
 			if (diskImageOffset < diskImageBuffer.Length)
 			{
 				System.Buffer.BlockCopy(diskImageBuffer, diskImageOffset, fileBuffer, fileBufferOffset, bytes_to_read);
+				fileBufferOffset += bytes_to_read;
 			}
 		}
+
+		//Debug.Log("fileSizeInBytes=" + fileBufferOffset.ToString() + " totalBytesAllocated=" + totalBytes.ToString());
 	}
 
 	//
@@ -924,8 +932,31 @@ public class H8DCataloger : MonoBehaviour
 		FillFileBuffer(fileName, fileExt, imageIdx);
 	}
 
+	public void HexViewerButton()
+	{
+		if (selectedDiskImageList.Count > 0)
+		{
+			int idx = selectedDiskImageList[0];
+			string filePath = diskImageList[idx];
+
+			//Debug.Log("HexViewerButton() filePath=" + filePath);
+
+			if (System.IO.File.Exists(filePath))
+			{
+				fileViewRoot.gameObject.SetActive(true);
+				fileBuffer = System.IO.File.ReadAllBytes(filePath);
+				ShowFileViewHex();
+			}
+		}
+	}
+
 	// hex dump file
 	void ShowFileViewHex()
+	{
+		StartCoroutine(ShowFileViewHexCoroutine());
+	}
+
+	IEnumerator ShowFileViewHexCoroutine()
 	{
 		int startHex = 0;
 		string hexFile = string.Empty;
@@ -959,13 +990,28 @@ public class H8DCataloger : MonoBehaviour
 
 			hexFile += hexLine;
 			searchFileLines++;
+
+			if ((searchFileLines % 100) == 0)
+			{
+				fileViewFooter.text = searchFileLines.ToString() + " LINES";
+				yield return new WaitForEndOfFrame();
+			}
 		}
+
+		fileViewFooter.text = searchFileLines.ToString() + " LINES";
+
+		yield return new WaitForEndOfFrame();
 
 		ShowFileViewText(hexFile, false);
 	}
 
 	// text format file
 	void ShowFileViewText(string text, bool format = true)
+	{
+		StartCoroutine(ShowFileViewTextCoroutine(text, format));
+	}
+
+	IEnumerator ShowFileViewTextCoroutine(string text, bool format)
 	{
 		while (fileScrollRect.content.childCount > 0)
 		{
@@ -993,7 +1039,11 @@ public class H8DCataloger : MonoBehaviour
 			}
 			textPrefab.text = formattedText.Substring(textStart, n);
 			textStart += n;
+
+			yield return new WaitForEndOfFrame();
 		}
+
+		fileViewFooter.text = searchFileLines.ToString() + " LINES";
 	}
 
 	// expand tabs to 8 chars
@@ -1153,8 +1203,13 @@ public class H8DCataloger : MonoBehaviour
 		{
 			if (diskFileList[i].type == 1 || diskFileList[i].type == 2)
 			{
+				string s = diskFileList[i].lineItem;
+				if (diskFileList[i].type == 1)
+                {
+					s = System.IO.Path.GetFileName(s);
+                }
 				UnityEngine.UI.InputField textField = Instantiate(fileTitlePrefab, diskFileListView.content);
-				textField.text = diskFileList[i].lineItem;
+				textField.text = s;
 			}
 			else
 			{
@@ -1184,15 +1239,36 @@ public class H8DCataloger : MonoBehaviour
 		if (!string.IsNullOrEmpty(workingFolderText.text))
 		{
 			string[] files = System.IO.Directory.GetFiles(workingFolderText.text, "*.?8?", System.IO.SearchOption.AllDirectories); // match .h8d or .H8D or .H8d
-			if (files.Length > 0)
+			string[] files37 = System.IO.Directory.GetFiles(workingFolderText.text, "*.?37", System.IO.SearchOption.AllDirectories);
+			if (files.Length > 0 || files37.Length > 0)
 			{
-				Debug.Log("H8D files=" + files.Length.ToString());
-				diskImageList = new List<string>(files);
-				diskImageList.Sort();
+				//Debug.Log("H8D files=" + files.Length.ToString());
+				if (files.Length > 0)
+				{
+					diskImageList = new List<string>(files);
+				}
+				if (files37.Length > 0)
+				{
+					if (diskImageList != null && diskImageList.Count > 0)
+					{
+						for (int i = 0; i < files37.Length; i++)
+						{
+							diskImageList.Add(files37[i]);
+						}
+					}
+					else
+					{
+						diskImageList = new List<string>(files37);
+					}
+				}
+				if (diskImageList != null && diskImageList.Count > 0)
+				{
+					diskImageList.Sort();
 
-				FillDiskImageListView();
+					FillDiskImageListView();
 
-				PlayerPrefs.SetString("workingfolder", workingFolderText.text);
+					PlayerPrefs.SetString("workingfolder", workingFolderText.text);
+				}
 			}
 		}
 	}
