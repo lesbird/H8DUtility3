@@ -959,23 +959,25 @@ public class H8DCataloger : MonoBehaviour
 	IEnumerator ShowFileViewHexCoroutine()
 	{
 		int startHex = 0;
-		string hexFile = string.Empty;
 		byte[] buf = new byte[16];
+		string hexLine = string.Empty;
+		List<string> lineList = new List<string>();
 
+		searchFileLines = 0;
 		while (startHex < fileBuffer.Length)
 		{
-			string hexLine = startHex.ToString("X8") + " ";
+			hexLine += startHex.ToString("X8") + " ";
 			int remain = fileBuffer.Length - startHex - 1;
 			int len = remain > buf.Length ? buf.Length : remain;
 			System.Buffer.BlockCopy(fileBuffer, startHex, buf, 0, len);
 			for (int i = 0; i < buf.Length; i++)
             {
 				hexLine += buf[i].ToString("X2") + " ";
-            }
+			}
 			for (int i = 0; i < buf.Length; i++)
 			{
 				char c = (char)buf[i];
-				if (char.IsLetterOrDigit(c) || char.IsPunctuation(c))
+				if (char.IsLetterOrDigit(c) || char.IsPunctuation(c) || char.IsSymbol(c))
 				{
 					hexLine += c;
 				}
@@ -985,76 +987,71 @@ public class H8DCataloger : MonoBehaviour
 				}
 				buf[i] = 0;
 			}
-			hexLine += System.Environment.NewLine;
-			startHex += buf.Length;
 
-			hexFile += hexLine;
 			searchFileLines++;
-
-			if ((searchFileLines % 100) == 0)
+			if ((searchFileLines % 256) == 0)
 			{
+				lineList.Add(hexLine);
+				hexLine = string.Empty;
+
 				fileViewFooter.text = searchFileLines.ToString() + " LINES";
 				yield return new WaitForEndOfFrame();
 			}
+			else
+			{
+				hexLine += System.Environment.NewLine;
+			}
+
+			startHex += buf.Length;
 		}
 
-		fileViewFooter.text = searchFileLines.ToString() + " LINES";
+		if (hexLine.Length > 0)
+		{
+			lineList.Add(hexLine);
+		}
 
 		yield return new WaitForEndOfFrame();
 
-		ShowFileViewText(hexFile, false);
+		ShowFileViewTextList(lineList);
 	}
 
 	// text format file
 	void ShowFileViewText(string text, bool format = true)
 	{
-		StartCoroutine(ShowFileViewTextCoroutine(text, format));
-	}
-
-	IEnumerator ShowFileViewTextCoroutine(string text, bool format)
-	{
-		while (fileScrollRect.content.childCount > 0)
-		{
-			DestroyImmediate(fileScrollRect.content.GetChild(0).gameObject);
-		}
-
-		string formattedText = text;
+		List<string> formattedText = null;
 		if (format)
 		{
 			formattedText = FormatForView(text);
 		}
-		int textLen = formattedText.Length;
 
-		for (int textStart = 0; textStart < textLen;)
+		ShowFileViewTextList(formattedText);
+	}
+
+	void ShowFileViewTextList(List<string> lineList)
+	{
+		StartCoroutine(ShowFileViewTextListCoroutine(lineList));
+	}
+
+	IEnumerator ShowFileViewTextListCoroutine(List<string> lineList)
+	{
+		yield return new WaitForEndOfFrame();
+
+		for (int i = 0; i < lineList.Count; i++)
 		{
 			UnityEngine.UI.Text textPrefab = Instantiate(fileViewPrefab, fileScrollRect.content);
-			int remaining = textLen - textStart;
-			int len = (remaining < 8192) ? remaining : 8192;
-
-			int n = len;
-			// break on LF
-			while (textStart + n < textLen && formattedText[textStart + n] != 0x0A)
-			{
-				n++;
-			}
-			textPrefab.text = formattedText.Substring(textStart, n);
-			textStart += n;
-
-			yield return new WaitForEndOfFrame();
+			textPrefab.text = lineList[i];
 		}
 
 		fileViewFooter.text = searchFileLines.ToString() + " LINES";
 	}
 
 	// expand tabs to 8 chars
-	string FormatForView(string s)
+	List<string> FormatForView(string s)
 	{
 		char[] splitChars = { (char)0x0A };
 		string[] lines = s.Split(splitChars, System.StringSplitOptions.None);
-		string result = string.Empty;
+		List<string> result = new List<string>();
 		bool term = false;
-
-		searchFileLines = lines.Length;
 
 		for (int i = 0; i < lines.Length; i++)
 		{
@@ -1084,14 +1081,16 @@ public class H8DCataloger : MonoBehaviour
 					break;
 				}
 			}
-			str += System.Environment.NewLine;
-			result += str;
+			result.Add(str);
 
 			if (term)
 			{
 				break;
 			}
 		}
+
+		searchFileLines = result.Count;
+
 		// returns formatted text
 		return result;
 	}
@@ -1166,9 +1165,9 @@ public class H8DCataloger : MonoBehaviour
 			else
 			{
 				string text = System.Text.Encoding.ASCII.GetString(fileBuffer);
-				string formattedText = FormatForView(text);
-
-				System.IO.File.WriteAllText(filePath, formattedText);
+				List<string> formattedText = FormatForView(text);
+				
+				System.IO.File.WriteAllLines(filePath, formattedText);
 			}
 		}
 	}
@@ -1235,6 +1234,8 @@ public class H8DCataloger : MonoBehaviour
 		workingFolderText.text = path;
 
 		Debug.Log("workingFolder=" + workingFolderText.text);
+
+		diskImageList = null;
 
 		if (!string.IsNullOrEmpty(workingFolderText.text))
 		{
@@ -1416,6 +1417,27 @@ public class H8DCataloger : MonoBehaviour
 	public void ViewFileClose()
 	{
 		fileViewRoot.gameObject.SetActive(false);
+		StartCoroutine(ScrollRectCleanupCoroutine());
+	}
+
+	IEnumerator ScrollRectCleanupCoroutine()
+	{
+		Debug.Log("ScrollRectCleanup begin");
+
+		int n = 0;
+		while (fileScrollRect.content.childCount > 0)
+		{
+			DestroyImmediate(fileScrollRect.content.GetChild(0).gameObject);
+			n++;
+
+			if (n == 1000)
+			{
+				yield return new WaitForEndOfFrame();
+			}
+		}
+		yield return new WaitForEndOfFrame();
+
+		Debug.Log("ScrollRectCleanup done");
 	}
 
 	public void ExtractButton()
@@ -1479,9 +1501,9 @@ public class H8DCataloger : MonoBehaviour
 				else
 				{
 					string text = System.Text.Encoding.ASCII.GetString(fileBuffer);
-					string formattedText = FormatForView(text);
-
-					System.IO.File.WriteAllText(filePath, formattedText);
+					List<string> formattedText = FormatForView(text);
+					
+					System.IO.File.WriteAllLines(filePath, formattedText);
 				}
 			}
 		}

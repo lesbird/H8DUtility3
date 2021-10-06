@@ -310,10 +310,7 @@ public class H8DImager : MonoBehaviour
 		FilePicker.Instance.onOpenPicker -= SaveDiskOnOpen;
 
 		string fileName = diskLabelField.text;
-		if (fileName.Contains("CP/M"))
-        {
-			fileName = "CPM_DISK_IMAGE";
-        }
+		fileName = fileName.Replace(' ', '_');
 		FilePicker.Instance.fileInputField.text = fileName;
 	}
 
@@ -359,6 +356,8 @@ public class H8DImager : MonoBehaviour
 		{
 			COMOpen();
 		}
+
+		serialPort.DiscardInBuffer();
 
 		yield return new WaitForEndOfFrame();
 
@@ -824,12 +823,12 @@ public class H8DImager : MonoBehaviour
 
 		string densityStr = density == 0x04 ? "DD" : "SD";
 
-		//driveDSToggle.isOn = (numSides == 2) ? true : false;
 		densityToggle.isOn = (density == 0x04) ? true : false;
+		driveDSToggle.isOn = (h37Sides == 2) ? true : false;
 
 		int bytes = (hibyte * 256) + lobyte;
 		sectorsPerTrackField.text = sectors.ToString() + " / " + h37sectorLen.ToString();
-		SendToLog("QUERY RESULTS SECTORS=" + sectors.ToString() + " SIDES=" + numSides.ToString() + " SECTOR SIZE=" + h37sectorLen.ToString() + " TRACK SIZE=" + bytes.ToString() + " DENSITY=" + densityStr);
+		SendToLog("QUERY RESULTS: SPT=" + sectors.ToString() + " TRK=" + h37track.ToString() + " SEC=" + h37sector.ToString() + " SIDE=" + h37side.ToString() + " NSIDES=" + numSides.ToString() + " SECSIZE=" + h37sectorLen.ToString() + " TRKSIZE=" + bytes.ToString() + " DENS=" + densityStr);
 	}
 
 	public void ReadTrack()
@@ -843,9 +842,33 @@ public class H8DImager : MonoBehaviour
 
 		if (serialPort != null && serialPort.IsOpen)
 		{
-			//byte[] cmdBuf = new byte[16];
-			//cmdBuf[0] = (byte)'Q';
-			//serialPort.Write(cmdBuf, 0, 1);
+			if (SetDrive())
+			{
+				byte[] cmdBuf = new byte[16];
+				cmdBuf[0] = (byte)'T';
+				serialPort.Write(cmdBuf, 0, 1);
+				int c = serialPort.ReadByte();
+				if (c == cmdBuf[0])
+				{
+					int t = 0;
+
+					if (int.TryParse(trackNumberField.text, out t))
+					{
+						// good parse
+					}
+
+					cmdBuf[0] = (byte)t;
+					serialPort.Write(cmdBuf, 0, 1);
+
+					yield return new WaitForEndOfFrame();
+
+					while (serialPort.BytesToRead == 0)
+					{
+						yield return new WaitForEndOfFrame();
+					}
+					ShowQueryResults();
+				}
+			}
 		}
 	}
 
