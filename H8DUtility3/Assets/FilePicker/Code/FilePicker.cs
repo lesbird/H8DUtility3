@@ -68,7 +68,7 @@ public class FilePicker : MonoBehaviour
 
     public void ShowPicker(bool needFileName = false)
     {
-        fileInputField.text = string.Empty;
+        //fileInputField.text = string.Empty;
         fileInputField.interactable = needFileName;
 
         if (onOpenPicker != null)
