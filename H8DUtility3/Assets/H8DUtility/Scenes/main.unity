@@ -16255,6 +16255,7 @@ MonoBehaviour:
   - {fileID: 680774565}
   - {fileID: 865054733}
   - {fileID: 1441195784}
+  - {fileID: 356982383}
   textLogPrefab: {fileID: 8120148370330627618, guid: a9fb489500c1a4ff7950875668d5e78f,
     type: 3}
   scrollViewRect: {fileID: 1487004003}
@@ -17820,7 +17821,7 @@ MonoBehaviour:
     m_FontSize: 14
     m_FontStyle: 2
     m_BestFit: 0
-    m_MinSize: 10
+    m_MinSize: 1
     m_MaxSize: 40
     m_Alignment: 0
     m_AlignByGeometry: 0
@@ -17828,7 +17829,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Enter track...
+  m_Text: '[track 0-79] / [side 1, 2]'
 --- !u!222 &1794047024
 CanvasRenderer:
   m_ObjectHideFlags: 0
