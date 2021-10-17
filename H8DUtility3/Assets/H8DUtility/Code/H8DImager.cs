@@ -1397,17 +1397,18 @@ public class H8DImager : MonoBehaviour
 				drive80TrkToggle.isOn = true;
 			}
 
-			yield return new WaitForSeconds(1);
-
 			// switch client to write disk state
 			cmdBuf[0] = (byte)'W';
 			serialPort.Write(cmdBuf, 0, 1);
 
-			yield return new WaitForSeconds(1);
-
 			int trackSize = 2560; // 256 * 10
 			if (h37Toggle.isOn)
 			{
+				while (serialPort.BytesToRead <= 0 || serialPort.ReadByte() != 'W')
+				{
+					yield return new WaitForEndOfFrame();
+				}
+
 				trackSize = spt * ssz;
 				// send sectorsPerTrack, sectorSize and density so know how to format the disk tracks
 				cmdBuf[0] = (byte)spt;
@@ -1455,24 +1456,19 @@ public class H8DImager : MonoBehaviour
 				serialPort.Write(cmdBuf, 0, 1);
 
 				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
 
 				sendBufIdx = track * trackSize;
-
-				if (h37Toggle.isOn)
-				{
-					serialPort.Write(sendBuf, sendBufIdx, trackSize);
-				}
-				else
-				{
-					serialPort.Write(sendBuf, sendBufIdx, trackSize);
-				}
+				serialPort.Write(sendBuf, sendBufIdx, trackSize);
 
 				int sides = driveDSToggle.isOn ? 2 : 1;
 				int actualSide = (sides == 2) ? (track % sides) + 1 : 1;
 				int actualTrack = track / sides;
 
 				// wait for 'W' acknowledgement
-				while (serialPort.BytesToRead <= 0)
+				while (serialPort.BytesToRead <= 0 || serialPort.ReadByte() != 'W')
 				{
 					trackTime += Time.deltaTime;
 
@@ -1487,25 +1483,28 @@ public class H8DImager : MonoBehaviour
 					progressValue.text = progress.ToString("N3") + "%";
 
 					yield return new WaitForEndOfFrame();
-				}
 
-				//while (serialPort.BytesToRead <= 0 && !abortTransfer)
-				//{
-				//	yield return new WaitForEndOfFrame();
-				//}
+					if (abortTransfer)
+					{
+						break;
+					}
+				}
 
 				if (!abortTransfer)
 				{
-					c = serialPort.ReadByte();
-					if (c == 'W')
-					{
-						SendToLog("TRACK " + actualTrack.ToString() + " SIDE " + actualSide.ToString() + " SENT");
-						track++;
-					}
+					SendToLog("TRACK " + actualTrack.ToString() + " SIDE " + actualSide.ToString() + " SENT");
+					track++;
 				}
 			} while (track < expectedTracks);
 
-			SendToLog("DISK IMAGE \"" + FilePicker.Instance.GetFileName() + "\" SENT IN " + t);
+			if (!abortTransfer)
+			{
+				SendToLog("DISK IMAGE \"" + FilePicker.Instance.GetFileName() + "\" SENT IN " + t);
+			}
+			else
+			{
+				SendToLog("DISK IMAGE ABORTED");
+			}
 
 			EnableButtons();
 		}
