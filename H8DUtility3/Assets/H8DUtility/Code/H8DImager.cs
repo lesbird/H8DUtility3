@@ -303,6 +303,7 @@ public class H8DImager : MonoBehaviour
 
 	void SaveDiskImage()
 	{
+		FilePicker.Instance.title.text = "Save Disk Image";
 		FilePicker.Instance.onCompleteCallback += SaveDiskImageComplete;
 		FilePicker.Instance.onOpenPicker += SaveDiskOnOpen;
 		FilePicker.Instance.ShowPicker(true);
@@ -453,7 +454,7 @@ public class H8DImager : MonoBehaviour
 		cmdBuf[0] = (byte)'A';
 		if (side != 0)
 		{
-			cmdBuf[1] = (byte)'B';
+			cmdBuf[0] = (byte)'B';
 		}
 		serialPort.Write(cmdBuf, 0, 1);
 		int res = serialPort.ReadByte();
@@ -588,6 +589,12 @@ public class H8DImager : MonoBehaviour
                     }
 					
 					serialPort.Write(cmdBuf, 0, 1);
+
+					while (serialPort.BytesToRead <= 0)
+					{
+						yield return new WaitForEndOfFrame();
+					}
+
 					res = serialPort.ReadByte();
 					if (res == cmdBuf[0])
 					{
@@ -603,6 +610,12 @@ public class H8DImager : MonoBehaviour
 					// query system to auto-detect disk type
 					cmdBuf[0] = (byte)'Q';
 					serialPort.Write(cmdBuf, 0, 1);
+
+					while (serialPort.BytesToRead <= 0)
+					{
+						yield return new WaitForEndOfFrame();
+					}
+
 					res = serialPort.ReadByte();
 
 					//Debug.Log(cmdBuf[0].ToString() + " sent reply=" + cmd.ToString());
@@ -635,6 +648,12 @@ public class H8DImager : MonoBehaviour
 								cmdBuf[0] = (byte)'7';
 							}
 							serialPort.Write(cmdBuf, 0, 1);
+
+							while (serialPort.BytesToRead <= 0)
+							{
+								yield return new WaitForEndOfFrame();
+							}
+
 							res = serialPort.ReadByte();
 							if (res != cmdBuf[0])
 							{
@@ -643,6 +662,10 @@ public class H8DImager : MonoBehaviour
 						}
 						else
 						{
+							while (serialPort.BytesToRead <= 0)
+							{
+								yield return new WaitForEndOfFrame();
+							}
 							diskType = serialPort.ReadByte();
 
 							SendToLog("DISK QUERY RETURNED " + diskType.ToString());
@@ -888,6 +911,16 @@ public class H8DImager : MonoBehaviour
 		}
 	}
 
+	int ReadByte()
+	{
+		int b = -1;
+		if (serialPort != null && serialPort.IsOpen && serialPort.BytesToRead > 0)
+		{
+			b = serialPort.ReadByte();
+		}
+		return b;
+	}
+
 	public void ReadTrack()
 	{
 		StartCoroutine(ReadTrackCoroutine());
@@ -980,6 +1013,15 @@ public class H8DImager : MonoBehaviour
 				if (int.TryParse(s, out t))
 				{
 					// good parse
+				}
+
+				if (driveDropdown.captionText.text.Equals("SY1"))
+				{
+					t = Mathf.Clamp(t, 0, 79);
+				}
+				else
+				{
+					t = Mathf.Clamp(t, 0, 39);
 				}
 
 				cmdBuf[0] = (byte)t;
@@ -1093,7 +1135,7 @@ public class H8DImager : MonoBehaviour
 			byte c = readBuf[i];
 			if (s1.Length == 0)
 			{
-				s1 += i.ToString("X4") + ":";
+				s1 += i.ToString("X4") + ": ";
 			}
 			s1 += c.ToString("X2");
 			if ((i % 32) > 0 && (i % 8) == 0)
@@ -1107,7 +1149,7 @@ public class H8DImager : MonoBehaviour
 			s2 += GetHexChar(c);
 			if (s2.Length == 32)
             {
-				Debug.Log(s2);
+				//Debug.Log(s2);
 				string s = s1 + s2;
 				hexDumpList.Add(s);
 				SendToLog(s);
@@ -1124,6 +1166,7 @@ public class H8DImager : MonoBehaviour
 		}
 		if (saveToFile)
 		{
+			FilePicker.Instance.title.text = "Save Hex Dump";
 			FilePicker.Instance.onCompleteCallback += HexDumpSaveComplete;
 			FilePicker.Instance.ShowPicker(true);
 		}
@@ -1166,6 +1209,7 @@ public class H8DImager : MonoBehaviour
 
 	public void SendDiskPressed()
 	{
+		FilePicker.Instance.title.text = "Load Disk Image";
 		FilePicker.Instance.onCompleteCallback += SendDiskFolderComplete;
 		FilePicker.Instance.ShowPicker(true);
 	}
@@ -1367,6 +1411,8 @@ public class H8DImager : MonoBehaviour
 			{
 				SendToLog("DISK TYPE " + diskType.ToString() + " SET ON CLIENT");
 			}
+
+			yield return new WaitForSeconds(1);
 
 			if (!h37Toggle.isOn)
 			{
@@ -1618,6 +1664,17 @@ public class H8DImager : MonoBehaviour
 		EnableButtons();
 
 		SendToLog("TRANSFER ABORT");
+	}
+
+	public void FormatDiskPressed()
+	{
+		//formatDiskPanel.SetActive(true);
+		//formatDiskDSToggle.isOn = driveDSToggle.isOn;
+		//formatDisk80Toggle.isOn = drive80TrkToggle.isOn;
+	}
+
+	public void FormatDiskStart()
+	{
 	}
 
 	void EnableButtons()
