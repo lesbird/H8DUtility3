@@ -1138,6 +1138,7 @@ public class H8DCataloger : MonoBehaviour
 	// save viewed file contents to disk
 	public void SaveFile()
 	{
+		FilePicker.Instance.title.text = "Save File";
 		FilePicker.Instance.onCompleteCallback += SaveFileComplete;
 		FilePicker.Instance.onOpenPicker += SaveFileOpenPicker;
 		FilePicker.Instance.ShowPicker(true);
@@ -1223,6 +1224,7 @@ public class H8DCataloger : MonoBehaviour
 
 	public void FolderButton()
 	{
+		FilePicker.Instance.title.text = "Choose Folder";
 		FilePicker.Instance.onCompleteCallback += SetWorkingFolder;
 		FilePicker.Instance.ShowPicker();
 	}
@@ -1443,7 +1445,7 @@ public class H8DCataloger : MonoBehaviour
 	public void ExtractButton()
 	{
 		//Debug.Log("ExtractButton()");
-
+		FilePicker.Instance.title.text = "Choose Folder";
 		FilePicker.Instance.onCompleteCallback += ExtractFileBinary;
 		FilePicker.Instance.ShowPicker();
 	}

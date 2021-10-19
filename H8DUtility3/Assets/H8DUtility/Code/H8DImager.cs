@@ -320,7 +320,7 @@ public class H8DImager : MonoBehaviour
 
 	void SaveDiskImageComplete(string path)
 	{
-		SendToLog("Saving disk image to " + path);
+		SendToLog("Saving to " + path);
 
 		FilePicker.Instance.onCompleteCallback -= SaveDiskImageComplete;
 
@@ -624,7 +624,25 @@ public class H8DImager : MonoBehaviour
 					{
 						if (h37Toggle.isOn)
 						{
-							ShowQueryResults();
+							int trkRes = ShowQueryResults();
+
+							if (trkRes == 4 && driveDropdown.captionText.text.Equals("SY0"))
+							{
+								// correct drive selected
+							}
+							else if (trkRes == 8 && driveDropdown.captionText.text.Equals("SY1"))
+							{
+								// correct drive selected
+							}
+							else
+							{
+								SendToLog("<color=yellow><b>WRONG DRIVE SELECTED OR DISK IS UNREADABLE</b></color>");
+
+								isReadingDisk = false;
+								EnableButtons();
+
+								yield break;
+							}
 
 							cmdBuf[0] = (byte)'4';
 							if (drive80TrkToggle.isOn)
@@ -862,8 +880,9 @@ public class H8DImager : MonoBehaviour
 		isReadingDisk = false;
 	}
 
-	void ShowQueryResults(bool brief = true)
+	int ShowQueryResults(bool brief = true)
 	{
+		int res = 0;
 		if (h37Toggle.isOn)
 		{
 			int sectors = serialPort.ReadByte();
@@ -893,6 +912,8 @@ public class H8DImager : MonoBehaviour
 
 			int bytes = (hibyte * 256) + lobyte;
 			sectorsPerTrackField.text = sectors.ToString() + " / " + h37sectorLen.ToString();
+
+			brief = false;
 			if (brief)
 			{
 				// disk query (track 0 header + full track side 2 or side 1)
@@ -903,12 +924,18 @@ public class H8DImager : MonoBehaviour
 				// track header contents
 				SendToLog("QUERY RESULTS: SPT=" + sectors.ToString() + " TRK=" + h37track.ToString() + " SEC=" + h37sector.ToString() + " SIDE=" + h37side.ToString() + " NSIDES=" + numSides.ToString() + " SECSIZE=" + h37sectorLen.ToString() + " TRKSIZE=" + bytes.ToString() + " DENS=" + densityStr);
 			}
+
+			res = h37track;
 		}
 		else
 		{
 			int r = serialPort.ReadByte();
 			SendToLog("QUERY RESULTS: " + r.ToString());
 		}
+
+		Debug.Log("ShowQueryResults() res=" + res.ToString());
+
+		return res;
 	}
 
 	int ReadByte()
@@ -921,6 +948,7 @@ public class H8DImager : MonoBehaviour
 		return b;
 	}
 
+	// read track header
 	public void ReadTrack()
 	{
 		StartCoroutine(ReadTrackCoroutine());
@@ -962,6 +990,9 @@ public class H8DImager : MonoBehaviour
 					{
 						// good parse
 					}
+
+					SendToLog("READ HEADER TRACK=" + t.ToString() + " SIDE=" + side.ToString());
+					yield return new WaitForEndOfFrame();
 
 					cmdBuf[0] = (byte)t;
 					serialPort.Write(cmdBuf, 0, 1);
