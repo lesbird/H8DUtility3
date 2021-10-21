@@ -29,6 +29,7 @@ using UnityEngine;
 /// Q - query for disk type returns 4,5,6,7 or (H37) secs per track, nsides, secsize, density
 /// Z - read track
 /// E - examine track (attempts full track read, returns data)
+/// F - format disk
 /// ? - returns '?' if alive
 /// </summary>
 public class H8DImager : MonoBehaviour
@@ -56,6 +57,14 @@ public class H8DImager : MonoBehaviour
 	public UnityEngine.UI.Toggle baud19200Toggle;
 	public UnityEngine.UI.Toggle baud38400Toggle;
 	public UnityEngine.UI.Toggle baud56000Toggle;
+	public GameObject formatDiskPanel;
+	public UnityEngine.UI.Toggle formatDiskDSToggle;
+	public UnityEngine.UI.Toggle formatDiskDensToggle;
+	public UnityEngine.UI.Toggle formatDisk05Toggle;
+	public UnityEngine.UI.Toggle formatDisk08Toggle;
+	public UnityEngine.UI.Toggle formatDisk09Toggle;
+	public UnityEngine.UI.Toggle formatDisk10Toggle;
+	public UnityEngine.UI.Toggle formatDisk16Toggle;
 	public GameObject saveLoaderPanel;
 	public GameObject sendLoaderPanel;
 	public GameObject readDiskVerifyPanel;
@@ -298,6 +307,11 @@ public class H8DImager : MonoBehaviour
 			{
 				drive80TrkToggle.isOn = false;
 			}
+		}
+
+		if (formatDiskPanel.activeInHierarchy)
+		{
+			// formatting disk
 		}
 	}
 
@@ -948,6 +962,37 @@ public class H8DImager : MonoBehaviour
 		return b;
 	}
 
+	void GetTrackSide(out int track, out int side)
+	{
+		side = 0;
+		track = 0;
+		string trackStr = trackNumberField.text;
+		if (trackNumberField.text.Contains("/"))
+		{
+			// parse side if available
+			int idx = trackNumberField.text.IndexOf('/');
+			string sideStr = trackNumberField.text.Substring(idx + 1);
+			if (int.TryParse(sideStr, out side))
+			{
+				// good parse
+				side = Mathf.Clamp(side - 1, 0, 1);
+			}
+			trackStr = trackNumberField.text.Substring(0, idx);
+		}
+		if (int.TryParse(trackStr, out track))
+		{
+			// good parse
+			if (driveDropdown.captionText.text.Equals("SY1"))
+			{
+				track = Mathf.Clamp(track, 0, 79);
+			}
+			else
+			{
+				track = Mathf.Clamp(track, 0, 39);
+			}
+		}
+	}
+
 	// read track header
 	public void ReadTrack()
 	{
@@ -960,18 +1005,9 @@ public class H8DImager : MonoBehaviour
 
 		if (serialPort != null && serialPort.IsOpen)
 		{
-			int side = 0;
-			if (trackNumberField.text.Contains("/"))
-			{
-				// parse side if available
-				int idx = trackNumberField.text.IndexOf('/');
-				string sideStr = trackNumberField.text.Substring(idx + 1);
-				if (int.TryParse(sideStr, out side))
-				{
-					// good parse
-					side = Mathf.Clamp(side - 1, 0, 1);
-				}
-			}
+			int side;
+			int track;
+			GetTrackSide(out track, out side);
 			if (SetDrive())
 			{
 				SetSide(side);
@@ -982,14 +1018,7 @@ public class H8DImager : MonoBehaviour
 				int c = serialPort.ReadByte();
 				if (c == cmdBuf[0])
 				{
-					int t = 0;
-
-					int n = Mathf.Min(trackNumberField.text.Length, 2);
-					string s = trackNumberField.text.Substring(0, n);
-					if (int.TryParse(s, out t))
-					{
-						// good parse
-					}
+					int t = track;
 
 					SendToLog("READ HEADER TRACK=" + t.ToString() + " SIDE=" + side.ToString());
 					yield return new WaitForEndOfFrame();
@@ -1016,18 +1045,9 @@ public class H8DImager : MonoBehaviour
 
 	IEnumerator ExamineTrackCoroutine()
 	{
-		int side = 0;
-		if (trackNumberField.text.Contains("/"))
-		{
-			// parse side if available
-			int idx = trackNumberField.text.IndexOf('/');
-			string sideStr = trackNumberField.text.Substring(idx + 1);
-			if (int.TryParse(sideStr, out side))
-			{
-				// good parse
-				side = Mathf.Clamp(side - 1, 0, 1);
-			}
-		}
+		int side;
+		int track;
+		GetTrackSide(out track, out side);
 		if (SetDrive())
 		{
 			SetSide(side);
@@ -1038,22 +1058,7 @@ public class H8DImager : MonoBehaviour
 			int c = serialPort.ReadByte();
 			if (c == cmdBuf[0])
 			{
-				int t = 0;
-				int n = Mathf.Min(trackNumberField.text.Length, 2);
-				string s = trackNumberField.text.Substring(0, n);
-				if (int.TryParse(s, out t))
-				{
-					// good parse
-				}
-
-				if (driveDropdown.captionText.text.Equals("SY1"))
-				{
-					t = Mathf.Clamp(t, 0, 79);
-				}
-				else
-				{
-					t = Mathf.Clamp(t, 0, 39);
-				}
+				int t = track;
 
 				cmdBuf[0] = (byte)t;
 				serialPort.Write(cmdBuf, 0, 1);
@@ -1514,13 +1519,21 @@ public class H8DImager : MonoBehaviour
 				if (h37Toggle.isOn)
 				{
 					// wait for 'W' handshake indicating format is done, ready for data
-					while (serialPort.BytesToRead <= 0 || serialPort.ReadByte() != 'W')
+					while (serialPort.BytesToRead <= 0)
 					{
 						if (abortTransfer)
                         {
 							break;
                         }
 						yield return new WaitForEndOfFrame();
+					}
+					if (serialPort.BytesToRead > 0)
+					{
+						int res = serialPort.ReadByte();
+						if (res != 'W')
+						{
+							abortTransfer = true;
+						}
 					}
 				}
 				if (abortTransfer)
@@ -1697,15 +1710,171 @@ public class H8DImager : MonoBehaviour
 		SendToLog("TRANSFER ABORT");
 	}
 
+	private bool diskToggles;
+
 	public void FormatDiskPressed()
 	{
-		//formatDiskPanel.SetActive(true);
-		//formatDiskDSToggle.isOn = driveDSToggle.isOn;
-		//formatDisk80Toggle.isOn = drive80TrkToggle.isOn;
+		formatDiskPanel.SetActive(true);
+		formatDiskDSToggle.isOn = driveDSToggle.isOn;
+		formatDiskDensToggle.isOn = densityToggle.isOn;
+	}
+
+	public void FormatDiskCancel()
+	{
+		formatDiskPanel.SetActive(false);
+	}
+
+	public void FormatDiskSPT(int n)
+	{
+		if (diskToggles)
+		{
+			return;
+		}
+		diskToggles = true;
+		if (n == 5)
+        {
+			formatDisk08Toggle.isOn = false;
+			formatDisk09Toggle.isOn = false;
+			formatDisk10Toggle.isOn = false;
+			formatDisk16Toggle.isOn = false;
+		}
+		if (n == 8)
+		{
+			formatDisk05Toggle.isOn = false;
+			formatDisk09Toggle.isOn = false;
+			formatDisk10Toggle.isOn = false;
+			formatDisk16Toggle.isOn = false;
+		}
+		if (n == 9)
+		{
+			formatDisk05Toggle.isOn = false;
+			formatDisk08Toggle.isOn = false;
+			formatDisk10Toggle.isOn = false;
+			formatDisk16Toggle.isOn = false;
+		}
+		if (n == 10)
+		{
+			formatDisk05Toggle.isOn = false;
+			formatDisk08Toggle.isOn = false;
+			formatDisk09Toggle.isOn = false;
+			formatDisk16Toggle.isOn = false;
+		}
+		if (n == 16)
+		{
+			formatDisk05Toggle.isOn = false;
+			formatDisk08Toggle.isOn = false;
+			formatDisk09Toggle.isOn = false;
+			formatDisk10Toggle.isOn = false;
+		}
+		diskToggles = false;
 	}
 
 	public void FormatDiskStart()
 	{
+		StartCoroutine(FormatDiskCoroutine());
+	}
+
+	IEnumerator FormatDiskCoroutine()
+	{
+		yield return new WaitForEndOfFrame();
+
+		byte[] cmdBuf = new byte[16];
+
+		UnityEngine.UI.Toggle[] toggles = formatDiskPanel.GetComponentsInChildren<UnityEngine.UI.Toggle>();
+		for (int i = 0; i < toggles.Length; i++)
+		{
+			toggles[i].interactable = false;
+		}
+		UnityEngine.UI.Button[] buttons = formatDiskPanel.GetComponentsInChildren<UnityEngine.UI.Button>();
+		for (int i = 0; i < buttons.Length; i++)
+		{
+			buttons[i].interactable = false;
+		}
+
+		driveDSToggle.isOn = formatDiskDSToggle.isOn;
+		cmdBuf[0] = (byte)'4';
+		if (driveDSToggle.isOn)
+		{
+			if (drive80TrkToggle.isOn)
+			{
+				cmdBuf[0] = (byte)'7';
+			}
+			else
+			{
+				cmdBuf[0] = (byte)'5';
+			}
+		}
+		else
+		{
+			if (drive80TrkToggle.isOn)
+			{
+				cmdBuf[0] = (byte)'6';
+			}
+		}
+
+		serialPort.Write(cmdBuf, 0, 1);
+
+		while (serialPort.BytesToRead <= 0)
+		{
+			yield return new WaitForEndOfFrame();
+		}
+
+		int res = serialPort.ReadByte();
+		if (res == cmdBuf[0])
+		{
+			// disk type confirmed
+			cmdBuf[0] = (byte)'F';
+			serialPort.Write(cmdBuf, 0, 1); // enter format disk mode
+
+			while (serialPort.BytesToRead <= 0)
+			{
+				yield return new WaitForEndOfFrame();
+			}
+
+			res = serialPort.ReadByte();
+			if (res == cmdBuf[0])
+			{
+				// send format params
+				cmdBuf[0] = (byte)(formatDisk05Toggle.isOn ? 5 : formatDisk08Toggle.isOn ? 8 : formatDisk09Toggle.isOn ? 9 : formatDisk10Toggle.isOn ? 10 : 16);
+				cmdBuf[1] = (byte)(formatDisk05Toggle.isOn ? 3 : formatDisk08Toggle.isOn ? 2 : formatDisk09Toggle.isOn ? 2 : formatDisk16Toggle.isOn ? 1 : 1);
+				cmdBuf[2] = (byte)(formatDiskDensToggle.isOn ? 4 : 0);
+				serialPort.Write(cmdBuf, 0, 3);
+
+				while (serialPort.BytesToRead <= 0)
+				{
+					yield return new WaitForEndOfFrame();
+				}
+
+				res = serialPort.ReadByte();
+				if (res == 'F')
+				{
+					// format start
+				}
+
+				while (serialPort.BytesToRead <= 0)
+				{
+					// wait until done
+					yield return new WaitForEndOfFrame();
+				}
+
+				res = serialPort.ReadByte();
+				if (res == 'F')
+				{
+					// format complete
+				}
+			}
+		}
+
+		for (int i = 0; i < toggles.Length; i++)
+		{
+			toggles[i].interactable = true;
+		}
+		for (int i = 0; i < buttons.Length; i++)
+		{
+			buttons[i].interactable = true;
+		}
+
+		formatDiskPanel.SetActive(false);
 	}
 
 	void EnableButtons()
