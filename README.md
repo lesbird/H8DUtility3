@@ -14,8 +14,8 @@ Use Unity 2020.3.7f1
 + Save HTML catalog output
 + Save TEXT catalog output
 + [H37 disk imager](https://github.com/lesbird/WD179xImager) is working for reading (detects disk type 1/2 sided, single/double density)
++ H37 disk imager is working for writing (single/double density, 1 or 2 sides, 40 or 80 tracks)
 
 ### NOT WORKING
 + IMD Convert
-+ H37 disk image write not working
 + Add files to HDOS or CP/M
