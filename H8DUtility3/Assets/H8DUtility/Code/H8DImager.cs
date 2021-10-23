@@ -328,15 +328,24 @@ public class H8DImager : MonoBehaviour
 		FilePicker.Instance.onOpenPicker -= SaveDiskOnOpen;
 
 		string fileName = diskLabelField.text;
-		fileName = fileName.Replace(' ', '_');
+		fileName = fileName.Replace(' ', '-');
+
+		if (h37Toggle.isOn)
+		{
+			// 160256-1S40T-MFM-
+			string filePre = h37Sectors.ToString("D2") + h37SectorSize.ToString("D4") + "-" + h37Sides.ToString() + "S" + h37Tracks.ToString("D2") + "T-" + h37Density + "_";
+			string filePost = "_" + System.DateTime.Now.ToString("yyyyMMddHHmm");
+			fileName = filePre + fileName + filePost + ".H37";
+		}
+
 		FilePicker.Instance.fileInputField.text = fileName;
 	}
 
 	void SaveDiskImageComplete(string path)
 	{
-		SendToLog("Saving to " + path);
-
 		FilePicker.Instance.onCompleteCallback -= SaveDiskImageComplete;
+
+		string finalPath = path;
 
 		if (h37Toggle.isOn)
 		{
@@ -347,15 +356,16 @@ public class H8DImager : MonoBehaviour
 			string diskSpecs = "SPT=" + h37Sectors.ToString("D2") + " SSZ=" + h37SectorSize.ToString("D4") + " TRK=" + h37Tracks.ToString("D2") + " SID=" + h37Sides.ToString() + " " + h37Density;
 			byte[] specs = System.Text.Encoding.ASCII.GetBytes(diskSpecs);
 			System.Buffer.BlockCopy(specs, 0, data, readBufIdx, specs.Length);
-			System.IO.File.WriteAllBytes(path, data);
+			System.IO.File.WriteAllBytes(finalPath, data);
 		}
 		else
 		{
 			byte[] data = new byte[readBufIdx];
 			System.Buffer.BlockCopy(readBuf, 0, data, 0, readBufIdx);
-			System.IO.File.WriteAllBytes(path, data);
+			System.IO.File.WriteAllBytes(finalPath, data);
 		}
 
+		SendToLog("File saved to " + finalPath);
 		SendToLog("Total bytes " + readBufIdx.ToString("N0"));
 
 		clientStatusButton.interactable = true;
@@ -640,11 +650,7 @@ public class H8DImager : MonoBehaviour
 						{
 							int trkRes = ShowQueryResults();
 
-							if (trkRes == 4 && driveDropdown.captionText.text.Equals("SY0"))
-							{
-								// correct drive selected
-							}
-							else if (trkRes == 8 && driveDropdown.captionText.text.Equals("SY1"))
+							if (trkRes == 4)
 							{
 								// correct drive selected
 							}
@@ -850,7 +856,21 @@ public class H8DImager : MonoBehaviour
 							}
 							else
 							{
-								diskLabelField.text = "NON-HDOS DISK IMAGE";
+								if (h37Toggle.isOn)
+								{
+									if (h37Sectors == 8 || h37Sectors == 9)
+									{
+										diskLabelField.text = "DOS-DISK";
+									}
+									else
+									{
+										diskLabelField.text = "CPM-DISK";
+									}
+								}
+								else
+								{
+									diskLabelField.text = "CPM-DISK";
+								}
 							}
 						}
 

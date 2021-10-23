@@ -18879,6 +18879,7 @@ MonoBehaviour:
   - {fileID: 865054733}
   - {fileID: 1441195784}
   - {fileID: 356982383}
+  - {fileID: 850831620}
   textLogPrefab: {fileID: 8120148370330627618, guid: a9fb489500c1a4ff7950875668d5e78f,
     type: 3}
   scrollViewRect: {fileID: 1487004003}
