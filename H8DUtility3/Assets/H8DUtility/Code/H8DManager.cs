@@ -58,6 +58,7 @@ public class H8DManager : MonoBehaviour
 	{
 		imagerCanvas.SetActive(true);
 		catalogerCanvas.SetActive(false);
+		H8DImager.Instance.COMInit();
 	}
 
 	public void ActivateCataloger()

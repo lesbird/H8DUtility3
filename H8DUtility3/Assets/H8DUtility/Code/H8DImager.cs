@@ -94,14 +94,20 @@ public class H8DImager : MonoBehaviour
 	private byte[] sendBuf;
 	private int sendBufIdx;
 
-	void Start()
+	public static H8DImager Instance;
+
+    void Awake()
+    {
+		Instance = this;
+    }
+
+    void Start()
 	{
 		DisableButtons();
-		COMInit();
 		ShowHelp();
 	}
 
-	void COMInit()
+	public void COMInit()
 	{
 		string[] comPortNames = SerialPort.GetPortNames();
 		List<string> comPortNamesList = new List<string>();
@@ -113,6 +119,7 @@ public class H8DImager : MonoBehaviour
 				comPortNamesList.Add(comPortNames[i]);
 			}
 		}
+		comDropdown.ClearOptions();
 		comDropdown.AddOptions(comPortNamesList);
 
 		string lastPortUsed = PlayerPrefs.GetString("port");
@@ -126,6 +133,15 @@ public class H8DImager : MonoBehaviour
 					baudUpdate = PlayerPrefs.GetInt("baud");
 					//baudUpdate = 9600;
 				}
+			}
+		}
+
+		if (serialPort != null)
+		{
+			if (serialPort.IsOpen)
+			{
+				serialPort.Close();
+				serialPort = null;
 			}
 		}
 
