@@ -21,6 +21,7 @@ public class H8DCataloger : MonoBehaviour
 	public UnityEngine.UI.Text fileViewFooter;
 	public UnityEngine.UI.Button allFilesButton;
 	public UnityEngine.UI.Text versionText;
+	public GameObject renamePanel;
 
 	public struct DiskFileItem
 	{
@@ -91,7 +92,16 @@ public class H8DCataloger : MonoBehaviour
 		public string fileCreateDate;
 		public string fileAlterationDate;
 	}
+	/*
+	[System.Serializable]
+	public class HUGLibraryRename
+	{
+		public string hugPartNum;
+		public string hugFileName;
+	}
 
+	public HUGLibraryRename[] hugLibraryRename;
+	*/
 	private List<DiskContentItem> diskFileContentList = new List<DiskContentItem>();
 
 	private List<int> selectedDiskImageList = new List<int>();
@@ -247,7 +257,7 @@ public class H8DCataloger : MonoBehaviour
 		//Debug.Log("ProcessHDOSDiskImage()");
 
 		HDOSDiskInfo disk_info = new HDOSDiskInfo();
-		disk_info.label = new byte[60];
+		disk_info.label = new byte[68];
 		int offset = 0x900;
 		disk_info.serial_num = diskImageBuffer[offset++];
 		disk_info.init_date = System.BitConverter.ToUInt16(diskImageBuffer, offset);
@@ -266,7 +276,7 @@ public class H8DCataloger : MonoBehaviour
 		disk_info.phys_sector_size = System.BitConverter.ToUInt16(diskImageBuffer, offset);
 		offset += 2;
 		disk_info.flags = diskImageBuffer[offset++];
-		System.Buffer.BlockCopy(diskImageBuffer, offset, disk_info.label, 0, 60);
+		System.Buffer.BlockCopy(diskImageBuffer, offset, disk_info.label, 0, 68);
 		offset += 60;
 		disk_info.reserved = System.BitConverter.ToUInt16(diskImageBuffer, offset);
 		offset += 2;
@@ -274,8 +284,20 @@ public class H8DCataloger : MonoBehaviour
 
 		//Debug.Log("disk_info.dir_sector=" + disk_info.dir_sector.ToString("X") + " grt_sector=" + disk_info.grt_sector.ToString("X"));
 
-		string labelstr = System.Text.Encoding.ASCII.GetString(disk_info.label, 0, 60);
-
+		// HDOS labels can be longer than 60 in certain cases
+		string labelstr2 = System.Text.Encoding.ASCII.GetString(disk_info.label, 0, 68);
+		string labelstr = string.Empty;
+		for (int labelIdx = 0; labelIdx < labelstr2.Length; labelIdx++)
+		{
+			if (labelstr2[labelIdx] < 0x20 || labelstr2[labelIdx] >= 0x7F)
+			{
+				labelstr += ' ';
+			}
+			else
+			{
+				labelstr += labelstr2[labelIdx];
+			}
+		}
 		//Debug.Log("Disk Label:" + labelstr);
 
 		diskLabelText.text = labelstr.Trim();
@@ -1633,6 +1655,193 @@ public class H8DCataloger : MonoBehaviour
 	// insert a file into a CP/M disk image
 	public void AddCPMButton()
 	{
+	}
+
+	// renames all disk images to a standard format (ex: 885-1234_FILENAME-ALL-CAPS-SEP-BY-DASHES.H8D)
+	public void RenameAllButton()
+	{
+		// HUG naming: 885-1234_DISKLABEL-SEP-BY-DASHES.H8D
+		// Generic naming: FILENAME-ALL-CAPS-SEP-BY-DASHES.H8D
+		renamePanel.SetActive(true);
+	}
+
+	public void RenameAllContinue()
+	{
+		renamePanel.SetActive(false);
+		StartCoroutine(RenameAllCoroutine());
+	}
+
+	public void RenameAllCancel()
+	{
+		renamePanel.SetActive(false);
+	}
+
+	IEnumerator RenameAllCoroutine()
+	{
+		yield return new WaitForEndOfFrame();
+
+		for (int i = 0; i < diskImageList.Count; i++)
+		{
+			int diskHash;
+			string fileName = GetHDOSLabelOrFileName(diskImageList[i], out diskHash);
+			string renameFile = GetCleanFileName(fileName);
+			if (renameFile.Length < 20)
+			{
+				renameFile = System.IO.Path.GetFileNameWithoutExtension(diskImageList[i]);
+				renameFile = GetCleanFileName(renameFile);
+			}
+			string fileExt = System.IO.Path.GetExtension(diskImageList[i]);
+
+			if (renameFile.Length >= 8)
+			{
+				string prefix = renameFile.Substring(0, 8);
+				if (prefix.Contains("885-") && renameFile.Length >= 9)
+				{
+					// make sure 885-xxxx_
+					if (renameFile[9] == '-')
+					{
+						string postfix = renameFile.Substring(10);
+						renameFile = prefix + "_" + postfix;
+					}
+					else if (renameFile[10] == '-')
+					{
+						string postfix = renameFile.Substring(11);
+						renameFile = prefix + "_" + postfix;
+					}
+					else
+					{
+						string postfix = renameFile.Substring(9);
+						renameFile = prefix + "_" + postfix;
+					}
+				}
+			}
+
+			string hashStr = diskHash.ToString("X8");
+			if (!renameFile.Contains(hashStr))
+			{
+				renameFile += "_" + hashStr;
+			}
+			renameFile += fileExt;
+			renameFile = renameFile.ToUpper();
+
+			string filePath = System.IO.Path.GetDirectoryName(diskImageList[i]);
+			string directoryName = filePath;
+			filePath = System.IO.Path.Combine(directoryName, renameFile);
+			if (!System.IO.File.Exists(filePath))
+			{
+				System.IO.File.Move(diskImageList[i], filePath);
+			}
+
+			//Debug.Log("oldname=" + diskImageList[i] + " newname=" + filePath);
+
+			if ((i % 50) == 0)
+			{
+				yield return new WaitForEndOfFrame();
+			}
+		}
+
+		yield return new WaitForEndOfFrame();
+
+		SetWorkingFolder(workingFolderText.text);
+		FillDiskImageListView();
+
+		RenameAllCancel();
+	}
+
+	string GetHDOSLabelOrFileName(string s, out int diskHash)
+	{
+		string fileName = System.IO.Path.GetFileNameWithoutExtension(s);
+		byte[] diskBytes = System.IO.File.ReadAllBytes(s);
+		if (IsHDOSDisk(diskBytes))
+		{
+			fileName = System.Text.ASCIIEncoding.ASCII.GetString(diskBytes, 0x911, 68);
+		}
+		diskHash = 0;
+		for (int i = 0; i < diskBytes.Length; i++)
+		{
+			diskHash += diskBytes[i];
+		}
+		return fileName;
+	}
+
+	public static string GetCleanFileName(string s)
+	{
+		string fileName = string.Empty;
+
+		bool escapeMode = false;
+		bool graphicsMode = false;
+		int spaceCount = 0;
+		for (int i = 0; i < s.Length; i++)
+		{
+			if (escapeMode)
+			{
+				if (s[i] == 'F')
+				{
+					graphicsMode = true;
+				}
+				if (s[i] == 'G')
+				{
+					graphicsMode = false;
+				}
+				escapeMode = false;
+				continue;
+			}
+			if (s[i] == 0x1B)
+			{
+				escapeMode = true;
+				continue;
+			}
+			if (graphicsMode)
+			{
+				continue;
+			}
+			if (s[i] >= '0' && s[i] <= '9')
+			{
+				fileName += s[i];
+				spaceCount = 0;
+			}
+			else if (s[i] >= 'A' && s[i] <= 'Z')
+			{
+				fileName += s[i];
+				spaceCount = 0;
+			}
+			else if (s[i] >= 'a' && s[i] <= 'z')
+			{
+				fileName += s[i];
+				spaceCount = 0;
+			}
+			else
+			{
+				if (fileName.Length > 0)
+				{
+					if (spaceCount == 0)
+					{
+						if (fileName[fileName.Length - 1] != '-')
+						{
+							fileName += '-';
+						}
+					}
+				}
+				spaceCount = 1;
+			}
+		}
+
+		if (s.Contains("885-"))
+		{
+			int startIndex = s.IndexOf("885-");
+			if (startIndex >= 8)
+			{
+				// move P/N to front if not already there
+				int n = Mathf.Min(s.Length - startIndex, 8);
+				string partNum = s.Substring(startIndex, n).Trim();
+				fileName = partNum + "_" + fileName;
+			}
+		}
+
+		char[] trimChars = { ' ', '-' };
+		fileName = fileName.Trim(trimChars);
+
+		return fileName;
 	}
 
 	public string ByteBufferToString(byte[] b)
