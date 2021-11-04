@@ -68,6 +68,7 @@ public class H8DImager : MonoBehaviour
 	public GameObject saveLoaderPanel;
 	public GameObject sendLoaderPanel;
 	public GameObject readDiskVerifyPanel;
+	public GameObject sendDiskVerifyPanel;
 
 	private SerialPort serialPort;
 	private int inBufIdx;
@@ -80,7 +81,7 @@ public class H8DImager : MonoBehaviour
 	private int h37Sides;
 	private string h37Density;
 
-	private byte volumeOverrideValue;
+	private int volumeOverrideValue;
 
 	private bool isReadingDisk;
 	private bool isWritingDisk;
@@ -1294,8 +1295,19 @@ public class H8DImager : MonoBehaviour
 		if (!string.IsNullOrEmpty(path))
 		{
 			sendBuf = System.IO.File.ReadAllBytes(path);
-			StartCoroutine(SendDiskCoroutine());
+			sendDiskVerifyPanel.SetActive(true);
 		}
+	}
+
+	public void SendDiskCancel()
+	{
+		sendDiskVerifyPanel.SetActive(false);
+	}
+
+	public void SendDiskVerify()
+	{
+		sendDiskVerifyPanel.SetActive(false);
+		StartCoroutine(SendDiskCoroutine());
 	}
 
 	IEnumerator SendDiskCoroutine()
@@ -1489,6 +1501,7 @@ public class H8DImager : MonoBehaviour
 			if (!h37Toggle.isOn)
 			{
 				// set disk volume number on client
+				int.TryParse(volumeNumberField.text, out volumeOverrideValue);
 				cmdBuf[0] = (byte)'V';
 				cmdBuf[1] = (byte)volumeOverrideValue;
 				serialPort.Write(cmdBuf, 0, 2);
