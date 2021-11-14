@@ -344,7 +344,16 @@ public class H8DImager : MonoBehaviour
 	{
 		FilePicker.Instance.onOpenPicker -= SaveDiskOnOpen;
 
-		string fileName = diskLabelField.text;
+		int diskHash;
+		string fileName = H8DCataloger.GetHDOSLabel(readBuf, out diskHash);
+		if (string.IsNullOrEmpty(fileName) || H8DCataloger.GetCleanFileName(fileName).Length < 20)
+        {
+			fileName = H8DCataloger.GetCleanFileName(diskLabelField.text);
+        }
+		fileName = H8DCataloger.GetRenameFileName(fileName, diskHash);
+		fileName += h37Toggle.isOn ? ".H37" : ".H8D";
+
+		/*
 		fileName = fileName.Replace(' ', '-');
 
 		if (h37Toggle.isOn)
@@ -354,7 +363,7 @@ public class H8DImager : MonoBehaviour
 			string filePost = "_" + System.DateTime.Now.ToString("yyyyMMddHHmm");
 			fileName = filePre + fileName + filePost + ".H37";
 		}
-
+		*/
 		FilePicker.Instance.fileInputField.text = fileName;
 	}
 
@@ -1472,6 +1481,8 @@ public class H8DImager : MonoBehaviour
 
 			SendToLog("DRIVE SY" + (char)cmdBuf[0] + " SELECTED ON CLIENT");
 
+			yield return new WaitForSeconds(1);
+
 			// set expected disk type on client
 			if (diskType == 0)
 			{
@@ -1514,6 +1525,8 @@ public class H8DImager : MonoBehaviour
 				}
 
 				SendToLog("DISK VOLUME SET TO " + volumeOverrideValue.ToString());
+
+				yield return new WaitForSeconds(1);
 			}
 
 			// set toggles to reflect disk type
@@ -1594,6 +1607,10 @@ public class H8DImager : MonoBehaviour
 				cmdBuf[0] = (byte)'W';
 				serialPort.Write(cmdBuf, 0, 1);
 
+				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
+				yield return new WaitForEndOfFrame();
 				yield return new WaitForEndOfFrame();
 				yield return new WaitForEndOfFrame();
 				yield return new WaitForEndOfFrame();
