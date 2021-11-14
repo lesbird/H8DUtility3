@@ -1349,6 +1349,8 @@ public class H8DImager : MonoBehaviour
 			}
 		}
 		*/
+		int disk1s80t = 2560 * 80;
+		int disk2s80t = 2560 * 80 * 2;
 
 		int spt = 0;
 		int ssz = 0;
@@ -1368,7 +1370,30 @@ public class H8DImager : MonoBehaviour
 
 			if (h37Toggle.isOn)
 			{
-				string s = System.Text.Encoding.ASCII.GetString(sendBuf, imageBytes - 32, 32);
+				string s = string.Empty;
+				if (FilePicker.Instance.GetFileName().Contains(".H8D"))
+				{
+					// if writing H8D to H37 then we use single density settings
+					s = "SPT=10 SSZ=0256 "; // TRK=40 SID=1 FM hard sector settings
+					if (imageBytes == disk1s80t)
+					{
+						// favor 2S40T over 1S80T
+						s += "TRK=40 SID=2 ";
+					}
+					else if (imageBytes == disk2s80t)
+					{
+						s += "TRK=80 SID=2 ";
+					}
+					else
+					{
+						s += "TRK-40 SID=1 ";
+					}
+					s += "FM";
+				}
+				else
+				{
+					s = System.Text.Encoding.ASCII.GetString(sendBuf, imageBytes - 32, 32);
+				}
 				Debug.Log(s);
 				// SPT=16 SSZ=0256 TRK=40 SID=2 MFM
 				string sptStr = s.Substring(4, 2);
@@ -1417,9 +1442,6 @@ public class H8DImager : MonoBehaviour
 			}
 			else
 			{
-				int disk1s80t = 2560 * 80;
-				int disk2s80t = 2560 * 80 * 2;
-
 				int volumeOverrideValue = 0;
 				if (volumeOverrideToggle.isOn)
 				{
