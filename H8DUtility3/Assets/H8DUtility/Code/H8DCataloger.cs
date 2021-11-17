@@ -1959,6 +1959,7 @@ public class H8DCataloger : MonoBehaviour
 			(diskImageBuffer[0] == 0xC3 && diskImageBuffer[1] == 0xA0 && diskImageBuffer[2] == 0x22 && diskImageBuffer[3] == 0x20) ||   //  V2.x
 			(diskImageBuffer[0] == 0xC3 && diskImageBuffer[1] == 0xA0 && diskImageBuffer[2] == 0x22 && diskImageBuffer[3] == 0x30) ||   //  V3.x
 			(diskImageBuffer[0] == 0xC3 && diskImageBuffer[1] == 0x1D && diskImageBuffer[2] == 0x24 && diskImageBuffer[3] == 0x20) ||   //  V2.x Super-89
+			(diskImageBuffer[0] == 0xC3 && diskImageBuffer[1] == 0xF8 && diskImageBuffer[2] == 0x23 && diskImageBuffer[3] == 0x20) ||   //  ?
 			(diskImageBuffer[0] == 0x18 && diskImageBuffer[1] == 0x1E && diskImageBuffer[2] == 0x13 && diskImageBuffer[3] == 0x20) ||   //  OMDOS
 			(diskImageBuffer[0] == 0xC3 && diskImageBuffer[1] == 0xD1 && diskImageBuffer[2] == 0x23 && diskImageBuffer[3] == 0x20))     //  OMDOS
 		{

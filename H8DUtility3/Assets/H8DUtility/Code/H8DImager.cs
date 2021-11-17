@@ -69,6 +69,7 @@ public class H8DImager : MonoBehaviour
 	public GameObject sendLoaderPanel;
 	public GameObject readDiskVerifyPanel;
 	public GameObject sendDiskVerifyPanel;
+	public GameObject sendDiskInvalidPanel;
 
 	private SerialPort serialPort;
 	private int inBufIdx;
@@ -1301,6 +1302,12 @@ public class H8DImager : MonoBehaviour
 		Debug.Log("SendDiskFolderComplete() path=" + path);
 
 		FilePicker.Instance.onCompleteCallback -= SendDiskFolderComplete;
+		if (!h37Toggle.isOn && path.Contains(".H37"))
+		{
+			// cannot send H37 to H8DIMGR
+			sendDiskInvalidPanel.SetActive(true);
+			return;
+		}
 		if (!string.IsNullOrEmpty(path))
 		{
 			sendBuf = System.IO.File.ReadAllBytes(path);
@@ -1310,6 +1317,7 @@ public class H8DImager : MonoBehaviour
 
 	public void SendDiskCancel()
 	{
+		sendDiskInvalidPanel.SetActive(false);
 		sendDiskVerifyPanel.SetActive(false);
 	}
 
