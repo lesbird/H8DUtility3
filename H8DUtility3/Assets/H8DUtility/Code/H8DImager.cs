@@ -194,7 +194,10 @@ public class H8DImager : MonoBehaviour
 
 	void ShowHelp()
 	{
-		//SendToLog("<color=lime>H8D DISK IMAGER</color>");
+		SendToLog("<color=lime>H8D DISK IMAGER</color>");
+		SendToLog("H8DIMGR2 use 9600 baud");
+		SendToLog("H8DIMGR3 use 38400 baud");
+		SendToLog("H37IMGR use 38400 baud");
 	}
 
 	public void H37ToggleSelected()
@@ -412,6 +415,8 @@ public class H8DImager : MonoBehaviour
 			COMOpen();
 		}
 
+		Debug.Log("CheckClientReady()");
+
 		serialPort.DiscardInBuffer();
 
 		yield return new WaitForEndOfFrame();
@@ -428,6 +433,25 @@ public class H8DImager : MonoBehaviour
 
 			bool clientIsReady = false;
 
+			while (serialPort.BytesToRead <= 0)
+			{
+				yield return new WaitForEndOfFrame();
+			}
+
+			int c = serialPort.ReadByte();
+			if (c == '?')
+			{
+				clientIsReady = true;
+				SendToLog("Client is ready");
+				EnableButtons();
+			}
+			else
+			{
+				SendToLog("Client is not ready");
+				DisableButtons();
+			}
+
+			/*
 			while (true)
 			{
 				try
@@ -456,12 +480,18 @@ public class H8DImager : MonoBehaviour
 
 				yield return new WaitForEndOfFrame();
 			}
+			*/
 
 			if (clientIsReady)
 			{
+				yield return new WaitForEndOfFrame();
+
 				// determine if using H37Imager
 				cmdBuf[0] = (byte)'3';
 				serialPort.Write(cmdBuf, 0, 1);
+
+				yield return new WaitForEndOfFrame();
+
 				int res = serialPort.ReadByte();
 				if (res == cmdBuf[0])
 				{
@@ -469,6 +499,8 @@ public class H8DImager : MonoBehaviour
 				}
 			}
 		}
+
+		Debug.Log("CheckClientReady() done");
 	}
 
 	bool SetDrive()
@@ -1333,6 +1365,8 @@ public class H8DImager : MonoBehaviour
 
 		progressBar.value = 0;
 		progressValue.text = string.Empty;
+
+		abortTransfer = false;
 
 		yield return new WaitForEndOfFrame();
 		/*
