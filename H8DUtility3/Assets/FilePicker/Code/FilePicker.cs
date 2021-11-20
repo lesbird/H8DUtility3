@@ -189,6 +189,12 @@ public class FilePicker : MonoBehaviour
         HidePicker();
     }
 
+    public void SetCurrentPath(string path)
+    {
+        directoryPath = path;
+        PlayerPrefs.SetString("filepickerpath", directoryPath);
+    }
+
     public void TopFolderButton()
     {
         directoryPath = homeDirectoryPath;

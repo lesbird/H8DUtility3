@@ -22,6 +22,18 @@ public class H8DCataloger : MonoBehaviour
 	public UnityEngine.UI.Button allFilesButton;
 	public UnityEngine.UI.Text versionText;
 	public GameObject renamePanel;
+	public GameObject deletePanel;
+	public UnityEngine.UI.Text deleteTitle;
+	public GameObject deleteInProgressPanel;
+	public UnityEngine.UI.Text deleteInProgressTitleText;
+	public UnityEngine.UI.Text deleteInProgressDescText;
+	public UnityEngine.UI.Slider deleteInProgressSlider;
+	public GameObject movePanel;
+	public UnityEngine.UI.Text moveTitle;
+	public GameObject moveInProgressPanel;
+	public UnityEngine.UI.Text moveInProgressTitleText;
+	public UnityEngine.UI.Text moveInProgressDescText;
+	public UnityEngine.UI.Slider moveInProgressSlider;
 	public UnityEngine.UI.InputField searchInputField;
 
 	public struct DiskFileItem
@@ -1282,6 +1294,11 @@ public class H8DCataloger : MonoBehaviour
 
 		Debug.Log("workingFolder=" + workingFolderText.text);
 
+		SetWorkingFolderDiskImageList();
+	}
+
+	public void SetWorkingFolderDiskImageList()
+	{
 		diskImageList = null;
 
 		if (!string.IsNullOrEmpty(workingFolderText.text))
@@ -1904,6 +1921,143 @@ public class H8DCataloger : MonoBehaviour
 		fileName = fileName.Trim(trimChars);
 
 		return fileName;
+	}
+
+	public void DeleteButton()
+	{
+		moveMode = false;
+		deletePanel.SetActive(true);
+		deleteTitle.text = "Delete <b>" + selectedDiskImageList.Count.ToString() + "</b> disk images";
+	}
+
+	public void DeleteContinue()
+	{
+		if (moveMode)
+		{
+			MoveContinue();
+			return;
+		}
+		StartCoroutine(DeleteContinueCoroutine());
+	}
+
+	IEnumerator DeleteContinueCoroutine()
+	{
+		deletePanel.SetActive(false);
+		deleteInProgressPanel.SetActive(true);
+		deleteInProgressTitleText.text = "Deleting <b>" + selectedDiskImageList.Count.ToString() + "</b> disk images";
+		deleteInProgressDescText.text = string.Empty;
+		deleteInProgressSlider.value = 0;
+
+		yield return new WaitForEndOfFrame();
+
+		for (int i = 0; i < selectedDiskImageList.Count; i++)
+		{
+			string s = diskImageList[selectedDiskImageList[i]];
+			string file = System.IO.Path.GetFileName(s);
+
+			deleteInProgressDescText.text = "DELETING: <b>" + file + "</b>";
+
+			yield return new WaitForEndOfFrame();
+
+			System.IO.File.Delete(s);
+			//Debug.Log(s);
+
+			float v = (float)i / selectedDiskImageList.Count;
+			deleteInProgressSlider.value = v;
+
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+		}
+
+		deleteInProgressSlider.value = 1;
+
+		yield return new WaitForEndOfFrame();
+		yield return new WaitForEndOfFrame();
+		yield return new WaitForEndOfFrame();
+
+		SetWorkingFolderDiskImageList();
+
+		yield return new WaitForSeconds(1);
+
+		deleteInProgressPanel.SetActive(false);
+	}
+
+	public void DeleteCancel()
+	{
+		deletePanel.SetActive(false);
+	}
+
+	private bool moveMode;
+
+	public void MoveButton()
+	{
+		moveMode = true;
+		movePanel.SetActive(true);
+		moveTitle.text = "Move <b>" + selectedDiskImageList.Count.ToString() + "</b> disk image(s)";
+	}
+
+	public void MoveContinue()
+	{
+		FilePicker.Instance.title.text = "DESTINATION FOLDER";
+		FilePicker.Instance.onCompleteCallback += MoveContinueCallback;
+		FilePicker.Instance.ShowPicker();
+	}
+
+	void MoveContinueCallback(string path)
+	{
+		FilePicker.Instance.onCompleteCallback -= MoveContinueCallback;
+		StartCoroutine(MoveContinueCoroutine(path));
+	}
+
+	IEnumerator MoveContinueCoroutine(string path)
+	{
+		movePanel.SetActive(false);
+		moveInProgressPanel.SetActive(true);
+		moveInProgressTitleText.text = "Moving <b>" + selectedDiskImageList.Count.ToString() + "</b> disk image(s)";
+		moveInProgressDescText.text = string.Empty;
+		moveInProgressSlider.value = 0;
+
+		yield return new WaitForEndOfFrame();
+
+		for (int i = 0; i < selectedDiskImageList.Count; i++)
+		{
+			string s = diskImageList[selectedDiskImageList[i]];
+			string file = System.IO.Path.GetFileName(s);
+
+			moveInProgressDescText.text = "MOVING: <b>" + file + "</b>";
+
+			yield return new WaitForEndOfFrame();
+
+			string movePath = System.IO.Path.Combine(path, file);
+			System.IO.File.Move(s, movePath);
+			//Debug.Log(s + "->" + movePath);
+
+			float v = (float)i / selectedDiskImageList.Count;
+			moveInProgressSlider.value = v;
+
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+			yield return new WaitForEndOfFrame();
+		}
+
+		moveInProgressSlider.value = 1;
+
+		yield return new WaitForEndOfFrame();
+		yield return new WaitForEndOfFrame();
+		yield return new WaitForEndOfFrame();
+
+		FilePicker.Instance.SetCurrentPath(workingFolderText.text);
+
+		SetWorkingFolderDiskImageList();
+
+		yield return new WaitForSeconds(1);
+
+		moveInProgressPanel.SetActive(false);
 	}
 
 	public void SearchText()
