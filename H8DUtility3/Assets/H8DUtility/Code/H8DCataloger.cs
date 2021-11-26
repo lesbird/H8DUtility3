@@ -1974,6 +1974,8 @@ public class H8DCataloger : MonoBehaviour
 
 		deleteInProgressSlider.value = 1;
 
+		selectedDiskImageList.Clear();
+
 		yield return new WaitForEndOfFrame();
 		yield return new WaitForEndOfFrame();
 		yield return new WaitForEndOfFrame();
@@ -2046,6 +2048,8 @@ public class H8DCataloger : MonoBehaviour
 		}
 
 		moveInProgressSlider.value = 1;
+
+		selectedDiskImageList.Clear();
 
 		yield return new WaitForEndOfFrame();
 		yield return new WaitForEndOfFrame();
