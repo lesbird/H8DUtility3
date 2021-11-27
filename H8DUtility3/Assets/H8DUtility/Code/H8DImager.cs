@@ -672,21 +672,28 @@ public class H8DImager : MonoBehaviour
 			yield return new WaitForSeconds(0.2f);
 
 			if (h8dImgr)
-            {
-				cmdBuf[0] = (byte)'T';
-				serialPort.Write(cmdBuf, 0, 1);
-
-				while (serialPort.BytesToRead <= 0)
+			{
+				if (h37Toggle.isOn)
 				{
-					yield return new WaitForEndOfFrame();
+					// do nothing
 				}
+				else
+				{
+					cmdBuf[0] = (byte)'T';
+					serialPort.Write(cmdBuf, 0, 1);
 
-				res = serialPort.ReadByte(); // disk vol number
-				SendToLog("DISK VOL#" + res.ToString("D3"));
+					while (serialPort.BytesToRead <= 0)
+					{
+						yield return new WaitForEndOfFrame();
+					}
 
-				res = serialPort.ReadByte(); // command ack
+					res = serialPort.ReadByte(); // disk vol number
+					SendToLog("DISK VOL#" + res.ToString("D3"));
 
-				yield return new WaitForSeconds(0.2f);
+					res = serialPort.ReadByte(); // command ack
+
+					yield return new WaitForSeconds(0.2f);
+				}
 
 				if (driveOverride.isOn && !h37Toggle.isOn)
 				{
